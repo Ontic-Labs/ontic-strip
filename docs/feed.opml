@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>News, Politics, and AI Governance RSS Feeds</title>
+  </head>
+  <body>
+    <!-- Global & Breaking -->
+    <outline text="Global &amp; Breaking News" title="Global &amp; Breaking News">
+      <outline type="rss" text="BBC News - World" title="BBC News - World" xmlUrl="http://feeds.bbci.co.uk/news/world/rss.xml" />
+      <outline type="rss" text="NPR - Top Stories" title="NPR - Top Stories" xmlUrl="https://feeds.npr.org/1001/rss.xml" />
+      <outline type="rss" text="The Guardian - World News" title="The Guardian - World News" xmlUrl="https://www.theguardian.com/world/rss" />
+      <outline type="rss" text="AP News - Top Stories" title="AP News - Top Stories" xmlUrl="https://apnews.com/apf-topnews&output=1" />
+      <outline type="rss" text="Reuters - World News" title="Reuters - World News" xmlUrl="http://feeds.reuters.com/Reuters/worldNews" />
+    </outline>
+
+    <!-- US Politics: ideological spread -->
+    <outline text="US Politics – Left / Center / Right" title="US Politics – Left / Center / Right">
+      <!-- Left / center-left -->
+      <outline type="rss" text="NPR - Politics" title="NPR - Politics" xmlUrl="https://feeds.npr.org/1014/rss.xml" /> <!-- [web:16][web:28] -->
+      <outline type="rss" text="New York Times - Politics" title="NYT - Politics" xmlUrl="https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml" />
+      <outline type="rss" text="The Guardian - US Politics" title="Guardian - US Politics" xmlUrl="https://www.theguardian.com/us-news/us-politics/rss" />
+      <!-- Center / aggregators using bias metrics -->
+      <outline type="rss" text="AllSides - Balanced News" title="AllSides - Balanced News" xmlUrl="https://www.allsides.com/feed" /> <!-- [web:17][web:28] -->
+      <outline type="rss" text="RealClearPolitics" title="RealClearPolitics" xmlUrl="https://www.realclearpolitics.com/index.xml" />
+      <!-- Right / right-leaning -->
+      <outline type="rss" text="Washington Times - Politics" title="Washington Times - Politics" xmlUrl="https://www.washingtontimes.com/rss/headlines/news/politics/" /> <!-- [web:20][web:28] -->
+      <outline type="rss" text="National Review - Articles" title="National Review - Articles" xmlUrl="https://www.nationalreview.com/rss.xml" />
+    </outline>
+
+    <!-- Legislative / process -->
+    <outline text="Congress, Law &amp; Process" title="Congress, Law &amp; Process">
+      <outline type="rss" text="Vote Smart - Key Votes" title="Vote Smart - Key Votes" xmlUrl="https://votesmart.org/media/key-votes/rss" /> <!-- [web:9] -->
+      <outline type="rss" text="Congress.gov - Most Recent Bills" title="Congress.gov - Most Recent Bills" xmlUrl="https://www.congress.gov/rss/bill-text.xml" />
+    </outline>
+
+    <!-- Investigative & policy -->
+    <outline text="In-Depth Investigation &amp; Policy" title="In-Depth Investigation &amp; Policy">
+      <outline type="rss" text="ProPublica" title="ProPublica" xmlUrl="https://www.propublica.org/feeds/propublica/main" />
+      <outline type="rss" text="Politico" title="Politico" xmlUrl="https://rss.politico.com/politics-news.xml" />
+      <outline type="rss" text="RAND - Policy Currents" title="RAND - Policy Currents" xmlUrl="https://www.rand.org/content/rand/www/pubs/policy_currents/policy-currents.xml" /> <!-- [web:14] -->
+    </outline>
+
+    <!-- Natsec / intel / cyber -->
+    <outline text="National Security, Intel &amp; Cyber" title="National Security, Intel &amp; Cyber">
+      <outline type="rss" text="War on the Rocks" title="War on the Rocks" xmlUrl="https://warontherocks.com/feed/" />
+      <outline type="rss" text="Lawfare" title="Lawfare" xmlUrl="https://www.lawfaremedia.org/feeds/feed.rss" />
+      <outline type="rss" text="Homeland Security News Wire" title="Homeland Security News Wire" xmlUrl="https://homelandsecuritynewswire.com/rss.xml" /> <!-- [web:13] -->
+      <outline type="rss" text="The Cipher Brief" title="The Cipher Brief" xmlUrl="https://thecipherbrief.com/feed" /> <!-- [web:13] -->
+      <outline type="rss" text="Recorded Future - Geopolitical Intelligence" title="Recorded Future - Geopolitical" xmlUrl="https://www.recordedfuture.com/category/geopolitical/feed/" /> <!-- [web:24] -->
+      <outline type="rss" text="SANS Internet Storm Center" title="SANS Internet Storm Center" xmlUrl="https://isc.sans.edu/rssfeed_full.xml" /> <!-- [web:24] -->
+      <outline type="rss" text="CISA - National Cyber Awareness (Alerts)" title="CISA - Alerts" xmlUrl="https://us-cert.cisa.gov/ncas/alerts.xml" /> <!-- [web:24] -->
+      <outline type="rss" text="CISA - National Cyber Awareness (Current Activity)" title="CISA - Current Activity" xmlUrl="https://us-cert.cisa.gov/ncas/current-activity.xml" /> <!-- [web:24] -->
+      <outline type="rss" text="Cisco Talos Intelligence Group" title="Cisco Talos Intelligence Group" xmlUrl="http://feeds.feedburner.com/feedburner/Talos" /> <!-- [web:24] -->
+      <outline type="rss" text="Intelligence Online" title="Intelligence Online" xmlUrl="https://www.intelligenceonline.com/rss" /> <!-- [web:21] -->
+    </outline>
+
+    <!-- Tech policy -->
+    <outline text="Technology Policy &amp; Governance" title="Technology Policy &amp; Governance">
+      <outline type="rss" text="Ars Technica - Tech Policy" title="Ars Technica - Tech Policy" xmlUrl="https://feeds.arstechnica.com/arstechnica/tech-policy" />
+      <outline type="rss" text="Wired - Security" title="Wired - Security" xmlUrl="https://www.wired.com/feed/category/security/latest/rss" />
+      <outline type="rss" text="US-CERT / CISA Cybersecurity Advisories" title="CISA Cybersecurity Advisories" xmlUrl="https://www.cisa.gov/cybersecurity-advisories/all.xml" /> <!-- [web:24] -->
+      <outline type="rss" text="NIST - News" title="NIST - News" xmlUrl="https://www.nist.gov/news-events/nist-news-and-headlines/rss.xml" /> <!-- [web:27] -->
+    </outline>
+
+    <!-- AI governance core -->
+    <outline text="AI Governance &amp; Tech Law" title="AI Governance &amp; Tech Law">
+      <outline type="rss" text="Tech Policy Press" title="Tech Policy Press" xmlUrl="https://www.techpolicy.press/feed/" />
+      <outline type="rss" text="Center for AI Safety (CAIS) Newsletter (audio RSS)" title="CAIS Newsletter (audio)" xmlUrl="https://feeds.type3.audio/cais--newsletter-ai-safety.rss" />
+      <outline type="rss" text="AI Safety Newsletter (CAIS, Substack HTML-to-RSS compatible)" title="AI Safety Newsletter (CAIS)" xmlUrl="https://newsletter.safe.ai/feed" /> <!-- [web:14][web:29] -->
+      <outline type="rss" text="Stanford CodeX - Legal Informatics" title="Stanford CodeX - Legal Informatics" xmlUrl="https://law.stanford.edu/codex-the-stanford-center-for-legal-informatics/feed/" />
+      <outline type="rss" text="EFF - Artificial Intelligence Updates" title="EFF - Artificial Intelligence Updates" xmlUrl="https://www.eff.org/rss/updates.xml" />
+      <outline type="rss" text="AI Governance Library" title="AI Governance Library" xmlUrl="https://www.aigl.blog/feed" /> <!-- [web:3][web:8] -->
+      <outline type="rss" text="Future of Life Institute - News" title="Future of Life Institute - News" xmlUrl="https://futureoflife.org/feed/" /> <!-- EU AI Act & autonomous weapons newsletters are surfaced here. [web:14] -->
+    </outline>
+
+    <!-- AI & data – broad firehose / discovery -->
+    <outline text="AI &amp; Data – Broad Landscape" title="AI &amp; Data – Broad Landscape">
+      <outline type="rss" text="Feedspot - Artificial Intelligence (meta-list)" title="Feedspot - AI meta" xmlUrl="https://rss.feedspot.com/ai_rss_feeds/" /> <!-- High volume; good discovery. [web:11] -->
+    </outline>
+  </body>
+</opml>

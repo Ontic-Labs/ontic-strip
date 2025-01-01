@@ -1,0 +1,67 @@
+project_id = "hvxyimtblcjncqiqiuyv"
+
+[functions.collector]
+verify_jwt = true
+
+[functions.indexer]
+verify_jwt = true
+
+[functions.oracle-classifier]
+verify_jwt = true
+
+[functions.oracle-extractor]
+verify_jwt = true
+
+[functions.oracle-evidence]
+verify_jwt = true
+
+[functions.oracle-veracity]
+verify_jwt = true
+
+[functions.aggregator]
+verify_jwt = true
+
+[functions.inoreader-auth]
+verify_jwt = true
+
+[functions.normalizer]
+verify_jwt = true
+
+[functions.oracle-synthesis]
+verify_jwt = true
+
+[functions.oracle-sentiment]
+verify_jwt = true
+
+[functions.rss-collector]
+verify_jwt = false
+
+[functions.firecrawl-scrape]
+verify_jwt = true
+
+[functions.story-clusterer]
+verify_jwt = false
+
+[functions.generate-feed-description]
+verify_jwt = true
+
+[functions.pipeline-worker]
+verify_jwt = false
+
+[functions.feed-admin]
+verify_jwt = true
+
+[functions.sitemap]
+verify_jwt = true
+
+[functions.oracle-ideology]
+verify_jwt = true
+
+[functions.event-enricher]
+verify_jwt = true
+
+[functions.seed-propositions]
+verify_jwt = true
+
+[functions.backfill-embeddings]
+verify_jwt = true

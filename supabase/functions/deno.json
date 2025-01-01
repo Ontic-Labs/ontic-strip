@@ -1,0 +1,10 @@
+{
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-import-prefix",
+        "no-explicit-any"
+      ]
+    }
+  }
+}

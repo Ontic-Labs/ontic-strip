@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /inoreader/
+
+Sitemap: https://jqhpdxcyrfdwbhuujnyy.supabase.co/functions/v1/sitemap

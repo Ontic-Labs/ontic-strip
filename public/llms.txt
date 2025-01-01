@@ -1,0 +1,63 @@
+# Ontic Strip
+
+> Multi-source news integrity analysis platform. Ontic Strip analyzes news articles for factual grounding, claim veracity, and editorial integrity using multi-stage AI pipelines.
+
+## About
+
+Ontic Strip is a research tool that ingests news articles from RSS feeds across the political spectrum, extracts factual claims using the SIRE framework (Scope, Information, Retrieval, Exclusions), retrieves evidence from multiple source tiers, and scores each claim using Natural Language Inference. The result is a visual "Strip" showing evidence alignment across an entire article.
+
+## Key Features
+
+- Real-time integrity analysis of news articles from mainstream, partisan, and independent sources
+- Claim extraction and evidence-based veracity scoring (Supported, Contradicted, Mixed, Unknown)
+- Publisher integrity baselines and leaderboard rankings
+- Story clustering to compare how different outlets cover the same events
+- Coverage blindspot detection across the political spectrum
+- Grounding Score (0-100): proportion of segments backed by actual evidence (supported, contradicted, or mixed). Segments with no evidence (Unknown) lower the score.
+- Integrity Score (0-100): weighted evidence alignment across segments. Supported segments add positively (1.0×), contradicted segments incur a penalty (1.2×), mixed segments contribute lightly (0.25×). Deliberately conservative — contradictions outweigh supports.
+
+## Main Sections
+
+- [Feed](https://onticstrip.com/feed): Real-time analyzed articles grouped by publisher
+- [Stories](https://onticstrip.com/stories): Multi-source story clusters showing different perspectives
+- [Trending Claims](https://onticstrip.com/claims): Latest verified claims from this week
+- [Publisher Leaderboard](https://onticstrip.com/leaderboard): Publishers ranked by reporting quality
+- [Publisher Comparison](https://onticstrip.com/compare): Side-by-side publisher integrity metrics
+
+- [Claim Search](https://onticstrip.com/search): Search across all extracted claims
+- [Publishers](https://onticstrip.com/publishers): All tracked publishers with baselines
+- [Methodology](https://onticstrip.com/methodology): How the analysis pipeline works
+
+## Pipeline Stages
+
+1. Collection - RSS feed polling and article fetching
+2. Normalization - HTML to clean markdown
+3. Indexing - Segmentation and embedding
+4. Classification - Segment type classification (factual claim, opinion, procedural, other)
+5. Extraction - SIRE-based claim extraction
+6. Veracity - Evidence retrieval and NLI scoring
+7. Sentiment - Emotional tone analysis
+8. Aggregation - Strip assembly and score computation
+9. Synthesis - AI-generated summary of evidence alignment
+
+## Evidence Tiers
+
+- T1: Primary Source (original documents, direct statements)
+- T2: Official Record (government records, court filings)
+- T3: Reference (encyclopedias, academic journals)
+- T4: Established News Organization (major wire services, newspapers of record)
+- T5: Internal Corpus (other articles in the system)
+
+## Veracity Labels
+
+- Supported: Claim backed by independent evidence
+- Contradicted: Evidence contradicts this claim
+- Mixed: Some evidence supports, some contradicts
+- Unknown: No sufficient evidence found
+- Opinion: Editorial opinion or analysis
+- Not Checkable: Cannot be verified against evidence
+- Neutral: Informational, not a factual claim
+
+## API
+
+The platform is powered by Supabase with edge functions. Data is publicly readable.
