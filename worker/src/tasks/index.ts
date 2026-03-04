@@ -28,10 +28,6 @@ function buildSupabaseAdminClient() {
 }
 
 export const taskList: TaskList = {
-  "ops.noop": async (payload, helpers) => {
-    helpers.logger.info("ops.noop executed", { payload });
-  },
-
   "pipeline.shadow_sentiment": async (rawPayload, helpers) => {
     const payload = (rawPayload ?? {}) as ShadowSentimentPayload;
     const startedAt = Date.now();

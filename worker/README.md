@@ -10,8 +10,7 @@ This directory contains a **non-production scaffold** for introducing Graphile W
 
 ## Current state
 
-- Includes only scaffold tasks:
-  - `ops.noop`
+- Includes only scaffold task:
   - `pipeline.shadow_sentiment`
 - No existing queue routing is modified.
 - No production jobs are enqueued here yet.
