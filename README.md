@@ -133,6 +133,9 @@ supabase/
     indexer/         pgvector embedding generation
     ...              22 functions total
 
+worker/
+  src/              Graphile Worker scaffold (step 1, shadow mode)
+
 docs/               Architecture docs, runbooks, prompt spec
 ```
 
@@ -148,6 +151,8 @@ docs/               Architecture docs, runbooks, prompt spec
 | `npm run lint` | Biome lint check |
 | `npm run lint:fix` | Auto-fix lint + format |
 | `npm run check` | Full check (lint + build) |
+| `npm run worker:dev` | Run Graphile worker scaffold locally (optional) |
+| `npm run shadow:parity-report` | Compare pgmq vs Graphile shadow outcomes for a stage window |
 | `npm run supabase:types` | Generate DB types from remote |
 | `npm run supabase:types:local` | Generate DB types from local |
 
