@@ -8,8 +8,10 @@ import { BASE_URL, SEOHead, collectionPageSchema } from "@/lib/seo";
 import type { Document } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+const STORIES_PER_PAGE = 24;
 
 function toBias(category: string): "left" | "center" | "right" {
   if (category === "lean-left" || category === "partisan-left") return "left";
@@ -57,6 +59,7 @@ export default function Stories() {
   const [clustering, setClustering] = useState(false);
   const [blindspotOnly, setBlindspotOnly] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
 
   const {
     data: clusters,
@@ -176,6 +179,20 @@ export default function Stories() {
     return result;
   }, [clusters, blindspotOnly, eventTypeFilter]);
 
+  const totalStories = displayClusters.length;
+  const totalPages = Math.max(1, Math.ceil(totalStories / STORIES_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const hasMultiplePages = totalPages > 1;
+  const pagedClusters = useMemo(() => {
+    const start = (currentPage - 1) * STORIES_PER_PAGE;
+    const end = start + STORIES_PER_PAGE;
+    return displayClusters.slice(start, end);
+  }, [displayClusters, currentPage]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   return (
     <AppLayout>
       <SEOHead
@@ -213,7 +230,10 @@ export default function Stories() {
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => setEventTypeFilter("all")}
+              onClick={() => {
+                setEventTypeFilter("all");
+                setPage(1);
+              }}
               className={cn(
                 "px-2.5 py-1 rounded-full text-[10px] font-mono transition-colors border",
                 eventTypeFilter === "all"
@@ -227,7 +247,10 @@ export default function Stories() {
               <button
                 type="button"
                 key={type}
-                onClick={() => setEventTypeFilter(eventTypeFilter === type ? "all" : type)}
+                onClick={() => {
+                  setEventTypeFilter(eventTypeFilter === type ? "all" : type);
+                  setPage(1);
+                }}
                 className={cn(
                   "px-2.5 py-1 rounded-full text-[10px] font-mono transition-colors border",
                   eventTypeFilter === type
@@ -267,7 +290,10 @@ export default function Stories() {
             {blindspotCount > 0 && (
               <button
                 type="button"
-                onClick={() => setBlindspotOnly(!blindspotOnly)}
+                onClick={() => {
+                  setBlindspotOnly(!blindspotOnly);
+                  setPage(1);
+                }}
                 className={cn(
                   "px-2 py-1 rounded text-[10px] font-mono transition-colors border",
                   blindspotOnly
@@ -301,7 +327,10 @@ export default function Stories() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setEventTypeFilter("all")}
+                onClick={() => {
+                  setEventTypeFilter("all");
+                  setPage(1);
+                }}
                 className="font-mono text-xs"
               >
                 Clear filter
@@ -313,16 +342,72 @@ export default function Stories() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {displayClusters.map((cluster) => (
-              <StoryCard
-                key={cluster.id}
-                cluster={cluster}
-                lowCoverage={cluster.publisherCount < 3}
-                eventType={EVENT_TYPE_LABELS[cluster.event_type] ?? cluster.event_type}
-                geo={cluster.geo_primary}
-              />
-            ))}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Showing stories {(currentPage - 1) * STORIES_PER_PAGE + 1}-
+                {Math.min(currentPage * STORIES_PER_PAGE, totalStories)} of {totalStories}
+              </span>
+              {hasMultiplePages && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-mono text-[11px]">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {pagedClusters.map((cluster) => (
+                <StoryCard
+                  key={cluster.id}
+                  cluster={cluster}
+                  lowCoverage={cluster.publisherCount < 3}
+                  eventType={EVENT_TYPE_LABELS[cluster.event_type] ?? cluster.event_type}
+                  geo={cluster.geo_primary}
+                />
+              ))}
+            </div>
+
+            {hasMultiplePages && (
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

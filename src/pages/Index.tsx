@@ -97,6 +97,7 @@ export default function FeedView() {
   const totalPublisherGroups = grouped.length;
   const totalPages = Math.max(1, Math.ceil(totalPublisherGroups / PUBLISHERS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
+  const hasMultiplePages = totalPages > 1;
   const pagedGrouped = useMemo(() => {
     const start = (currentPage - 1) * PUBLISHERS_PER_PAGE;
     const end = start + PUBLISHERS_PER_PAGE;
@@ -226,27 +227,29 @@ export default function FeedView() {
               {Math.min(currentPage * PUBLISHERS_PER_PAGE, totalPublisherGroups)} of{" "}
               {totalPublisherGroups}
             </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-              >
-                Previous
-              </Button>
-              <span className="font-mono text-[11px]">
-                Page {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            {hasMultiplePages && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="font-mono text-[11px]">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -272,76 +275,104 @@ export default function FeedView() {
             </p>
           </div>
         ) : (
-          <Accordion
-            type="multiple"
-            defaultValue={
-              freshPublishers.length > 0 ? freshPublishers : pagedGrouped.map(([name]) => name)
-            }
-            className="space-y-4"
-          >
-            {pagedGrouped.map(([publisher, { category, docs }]) => {
-              const integrityScore = getQuickScore(publisher);
-              const pubBaselines = getBaselines(publisher);
+          <div className="space-y-4">
+            <Accordion
+              type="multiple"
+              defaultValue={
+                freshPublishers.length > 0 ? freshPublishers : pagedGrouped.map(([name]) => name)
+              }
+              className="space-y-4"
+            >
+              {pagedGrouped.map(([publisher, { category, docs }]) => {
+                const integrityScore = getQuickScore(publisher);
+                const pubBaselines = getBaselines(publisher);
 
-              return (
-                <AccordionItem
-                  key={publisher}
-                  value={publisher}
-                  className="border rounded-lg overflow-hidden"
-                >
-                  <AccordionTrigger className="px-3 sm:px-4 py-3 hover:no-underline hover:bg-accent/50 [&[data-state=open]>svg]:rotate-180">
-                    <div className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                      <span className="font-mono font-semibold text-xs sm:text-sm truncate">
-                        {publisher}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[9px] sm:text-[10px] shrink-0",
-                          category === "mainstream" && "border-primary/30 text-primary",
-                          category === "partisan" && "border-strip-mixed/30 text-strip-mixed",
-                          category === "fringe" &&
-                            "border-strip-contradicted/30 text-strip-contradicted",
-                          category === "reference" &&
-                            "border-strip-supported/30 text-strip-supported",
-                        )}
-                      >
-                        {category}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
-                        {docs.length} article{docs.length !== 1 ? "s" : ""}
-                      </span>
-                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                        <IntegritySparkline points={getSparklinePoints(publisher)} />
-                        {integrityScore !== null && <ScoreBadge label="I" score={integrityScore} />}
+                return (
+                  <AccordionItem
+                    key={publisher}
+                    value={publisher}
+                    className="border rounded-lg overflow-hidden"
+                  >
+                    <AccordionTrigger className="px-3 sm:px-4 py-3 hover:no-underline hover:bg-accent/50 [&[data-state=open]>svg]:rotate-180">
+                      <div className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                        <span className="font-mono font-semibold text-xs sm:text-sm truncate">
+                          {publisher}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[9px] sm:text-[10px] shrink-0",
+                            category === "mainstream" && "border-primary/30 text-primary",
+                            category === "partisan" && "border-strip-mixed/30 text-strip-mixed",
+                            category === "fringe" &&
+                              "border-strip-contradicted/30 text-strip-contradicted",
+                            category === "reference" &&
+                              "border-strip-supported/30 text-strip-supported",
+                          )}
+                        >
+                          {category}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {docs.length} article{docs.length !== 1 ? "s" : ""}
+                        </span>
+                        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                          <IntegritySparkline points={getSparklinePoints(publisher)} />
+                          {integrityScore !== null && (
+                            <ScoreBadge label="I" score={integrityScore} />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0 space-y-3">
-                    {/* Publisher summary */}
-                    <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-1">
-                      Publisher Summary
-                    </h3>
-                    <PublisherAnalysisCard
-                      publisherName={publisher}
-                      category={category}
-                      baselines={pubBaselines}
-                    />
+                    </AccordionTrigger>
+                    <AccordionContent className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0 space-y-3">
+                      {/* Publisher summary */}
+                      <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-1">
+                        Publisher Summary
+                      </h3>
+                      <PublisherAnalysisCard
+                        publisherName={publisher}
+                        category={category}
+                        baselines={pubBaselines}
+                      />
 
-                    {/* Article list */}
-                    <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-2">
-                      Articles ({docs.length})
-                    </h3>
-                    <div className="grid gap-2">
-                      {docs.map((doc) => (
-                        <ArticleCard key={doc.id} document={doc} />
-                      ))}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              );
-            })}
-          </Accordion>
+                      {/* Article list */}
+                      <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-2">
+                        Articles ({docs.length})
+                      </h3>
+                      <div className="grid gap-2">
+                        {docs.map((doc) => (
+                          <ArticleCard key={doc.id} document={doc} />
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+
+            {hasMultiplePages && (
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </AppLayout>

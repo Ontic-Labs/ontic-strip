@@ -8,7 +8,7 @@ import type { GapReason, RiskLevel, VeracityLabel } from "@/lib/types";
 import { GAP_REASON_NAMES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 const VERACITY_STYLES: Record<VeracityLabel, string> = {
@@ -28,6 +28,7 @@ const VERACITY_NAMES: Record<VeracityLabel, string> = {
 };
 
 type FilterLabel = "all" | VeracityLabel;
+const CLAIMS_PER_PAGE = 20;
 
 interface TrendingClaim {
   id: string;
@@ -46,6 +47,7 @@ interface TrendingClaim {
 
 export default function TrendingClaims() {
   const [filter, setFilter] = useState<FilterLabel>("all");
+  const [page, setPage] = useState(1);
 
   const { data: claims, isLoading } = useQuery({
     queryKey: ["trending-claims"],
@@ -66,6 +68,20 @@ export default function TrendingClaims() {
   });
 
   const filtered = filter === "all" ? claims : claims?.filter((c) => c.veracity_label === filter);
+  const totalClaims = filtered?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalClaims / CLAIMS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const hasMultiplePages = totalPages > 1;
+  const pagedClaims = useMemo(() => {
+    const list = filtered ?? [];
+    const start = (currentPage - 1) * CLAIMS_PER_PAGE;
+    const end = start + CLAIMS_PER_PAGE;
+    return list.slice(start, end);
+  }, [filtered, currentPage]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const veracityCounts =
     claims?.reduce<Record<string, number>>((acc, c) => {
@@ -100,7 +116,10 @@ export default function TrendingClaims() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
-            onClick={() => setFilter("all")}
+            onClick={() => {
+              setFilter("all");
+              setPage(1);
+            }}
             className={cn(
               "px-2.5 py-1 rounded text-xs font-mono transition-colors",
               filter === "all"
@@ -114,7 +133,10 @@ export default function TrendingClaims() {
             <button
               type="button"
               key={label}
-              onClick={() => setFilter(label)}
+              onClick={() => {
+                setFilter(label);
+                setPage(1);
+              }}
               className={cn(
                 "px-2.5 py-1 rounded text-xs font-mono transition-colors",
                 filter === label
@@ -144,42 +166,98 @@ export default function TrendingClaims() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((claim) => (
-              <Link key={claim.id} to={`/document/${claim.document_id}`}>
-                <Card className="hover:shadow-md transition-all hover:border-primary/20">
-                  <CardContent className="p-3 sm:p-4 space-y-1.5">
-                    <p className="text-xs sm:text-sm leading-relaxed">{claim.claim_text}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {claim.veracity_label && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] font-mono",
-                            VERACITY_STYLES[claim.veracity_label],
-                          )}
-                        >
-                          {VERACITY_NAMES[claim.veracity_label]}
-                        </Badge>
-                      )}
-                      {claim.risk_level && claim.risk_level !== "LOW" && (
-                        <span className="text-[10px] font-mono text-strip-mixed">
-                          {claim.risk_level} risk
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Showing claims {(currentPage - 1) * CLAIMS_PER_PAGE + 1}-
+                {Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims)} of {totalClaims}
+              </span>
+              {hasMultiplePages && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-mono text-[11px]">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {pagedClaims.map((claim) => (
+                <Link key={claim.id} to={`/document/${claim.document_id}`}>
+                  <Card className="hover:shadow-md transition-all hover:border-primary/20">
+                    <CardContent className="p-3 sm:p-4 space-y-1.5">
+                      <p className="text-xs sm:text-sm leading-relaxed">{claim.claim_text}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {claim.veracity_label && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] font-mono",
+                              VERACITY_STYLES[claim.veracity_label],
+                            )}
+                          >
+                            {VERACITY_NAMES[claim.veracity_label]}
+                          </Badge>
+                        )}
+                        {claim.risk_level && claim.risk_level !== "LOW" && (
+                          <span className="text-[10px] font-mono text-strip-mixed">
+                            {claim.risk_level} risk
+                          </span>
+                        )}
+                        {claim.veracity_label === "UNKNOWN" && claim.gap_reason && (
+                          <span className="text-[10px] font-mono text-muted-foreground italic">
+                            {GAP_REASON_NAMES[claim.gap_reason]}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground font-mono ml-auto truncate max-w-[200px]">
+                          {claim.documents?.feeds?.publisher_name ?? "Unknown"}
                         </span>
-                      )}
-                      {claim.veracity_label === "UNKNOWN" && claim.gap_reason && (
-                        <span className="text-[10px] font-mono text-muted-foreground italic">
-                          {GAP_REASON_NAMES[claim.gap_reason]}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-muted-foreground font-mono ml-auto truncate max-w-[200px]">
-                        {claim.documents?.feeds?.publisher_name ?? "Unknown"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            {hasMultiplePages && (
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

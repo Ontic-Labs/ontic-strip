@@ -8,7 +8,7 @@ import { SEOHead } from "@/lib/seo";
 import type { RiskLevel, VeracityLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 const VERACITY_STYLES: Record<VeracityLabel, string> = {
@@ -43,8 +43,11 @@ interface ClaimResult {
   documents: { title: string | null; feeds: { publisher_name: string } | null } | null;
 }
 
+const CLAIMS_PER_PAGE = 20;
+
 export default function ClaimSearch() {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const deferredQuery = useDeferredValue(query);
 
   const { data: claims, isLoading } = useQuery({
@@ -74,6 +77,21 @@ export default function ClaimSearch() {
       return acc;
     }, {}) ?? {};
 
+  const totalClaims = claims?.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalClaims / CLAIMS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const hasMultiplePages = totalPages > 1;
+  const pagedClaims = useMemo(() => {
+    const list = claims ?? [];
+    const start = (currentPage - 1) * CLAIMS_PER_PAGE;
+    const end = start + CLAIMS_PER_PAGE;
+    return list.slice(start, end);
+  }, [claims, currentPage]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   return (
     <AppLayout>
       <SEOHead
@@ -92,7 +110,10 @@ export default function ClaimSearch() {
         <Input
           placeholder="Search claims (e.g. &quot;inflation rate&quot;, &quot;climate&quot;)..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
           className="font-mono"
         />
 
@@ -129,43 +150,99 @@ export default function ClaimSearch() {
             <p className="text-sm text-muted-foreground">No claims match "{deferredQuery}"</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {claims.map((claim) => (
-              <Link key={claim.id} to={`/document/${claim.document_id}`}>
-                <Card className="hover:shadow-md transition-all hover:border-primary/20">
-                  <CardContent className="p-3 sm:p-4 space-y-2">
-                    <p className="text-xs sm:text-sm leading-relaxed">{claim.claim_text}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {claim.veracity_label && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] font-mono",
-                            VERACITY_STYLES[claim.veracity_label],
-                          )}
-                        >
-                          {VERACITY_NAMES[claim.veracity_label]}
-                        </Badge>
-                      )}
-                      {claim.risk_level && (
-                        <span
-                          className={cn("text-[10px] font-mono", RISK_STYLES[claim.risk_level])}
-                        >
-                          {claim.risk_level} risk
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Showing claims {(currentPage - 1) * CLAIMS_PER_PAGE + 1}-
+                {Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims)} of {totalClaims}
+              </span>
+              {hasMultiplePages && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-mono text-[11px]">
+                    Page {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {pagedClaims.map((claim) => (
+                <Link key={claim.id} to={`/document/${claim.document_id}`}>
+                  <Card className="hover:shadow-md transition-all hover:border-primary/20">
+                    <CardContent className="p-3 sm:p-4 space-y-2">
+                      <p className="text-xs sm:text-sm leading-relaxed">{claim.claim_text}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {claim.veracity_label && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] font-mono",
+                              VERACITY_STYLES[claim.veracity_label],
+                            )}
+                          >
+                            {VERACITY_NAMES[claim.veracity_label]}
+                          </Badge>
+                        )}
+                        {claim.risk_level && (
+                          <span
+                            className={cn("text-[10px] font-mono", RISK_STYLES[claim.risk_level])}
+                          >
+                            {claim.risk_level} risk
+                          </span>
+                        )}
+                        <span className="text-[10px] text-muted-foreground font-mono ml-auto">
+                          {claim.documents?.feeds?.publisher_name ?? "Unknown"} ·{" "}
+                          {claim.documents?.title
+                            ? claim.documents.title.slice(0, 60) +
+                              (claim.documents.title.length > 60 ? "…" : "")
+                            : "Untitled"}
                         </span>
-                      )}
-                      <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-                        {claim.documents?.feeds?.publisher_name ?? "Unknown"} ·{" "}
-                        {claim.documents?.title
-                          ? claim.documents.title.slice(0, 60) +
-                            (claim.documents.title.length > 60 ? "…" : "")
-                          : "Untitled"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            {hasMultiplePages && (
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  Page {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
