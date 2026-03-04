@@ -29,7 +29,7 @@ function buildSupabaseAdminClient() {
 
 export const taskList: TaskList = {
   "ops.noop": async (payload, helpers) => {
-    helpers.logger.info({ payload }, "ops.noop executed");
+    helpers.logger.info("ops.noop executed", { payload });
   },
 
   "pipeline.shadow_sentiment": async (rawPayload, helpers) => {
@@ -96,20 +96,17 @@ export const taskList: TaskList = {
       });
 
     if (insertError) {
-      helpers.logger.error({ insertError }, "Failed to persist graphile shadow run");
+      helpers.logger.error("Failed to persist graphile shadow run", { insertError });
     }
 
-    helpers.logger.info(
-      {
-        stage,
-        documentId,
-        status,
-        httpStatus,
-        durationMs,
-        errorMessage,
-      },
-      "pipeline.shadow_sentiment completed",
-    );
+    helpers.logger.info("pipeline.shadow_sentiment completed", {
+      stage,
+      documentId,
+      status,
+      httpStatus,
+      durationMs,
+      errorMessage,
+    });
 
     if (status === "failed") {
       throw new Error(errorMessage ?? "pipeline.shadow_sentiment failed");
