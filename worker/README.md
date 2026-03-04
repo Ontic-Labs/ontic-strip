@@ -1,19 +1,19 @@
-# Graphile Worker (Step 1 Scaffold)
+# Graphile Worker
 
-This directory contains a **non-production scaffold** for introducing Graphile Worker incrementally.
+This directory contains the Graphile Worker runtime for pipeline stage orchestration.
 
 ## Purpose
 
-- Provide an always-on Node worker skeleton.
-- Keep current Supabase `pgmq` + `pipeline-worker` orchestration unchanged.
-- Enable shadow-mode experimentation before stage ownership cutover.
+- Provide an always-on Node worker for pipeline execution.
+- Execute stage jobs via `pipeline.run_stage` and invoke existing Supabase Edge Functions.
+- Support per-stage routing through `pipeline_stage_ownership`.
 
 ## Current state
 
-- Includes only scaffold task:
-  - `pipeline.shadow_sentiment`
-- No existing queue routing is modified.
-- No production jobs are enqueued here yet.
+- Includes tasks:
+  - `pipeline.run_stage` (primary)
+  - `pipeline.shadow_sentiment` (compatibility alias)
+- Stage routing is controlled in SQL (`pipeline_stage_ownership`).
 
 ## Local run
 
@@ -28,14 +28,13 @@ Optional env vars:
 - `DATABASE_URL` (fallback)
 - `GRAPHILE_CONCURRENCY` (default: `5`)
 
-Required for `pipeline.shadow_sentiment`:
+Required for stage execution:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-## Next steps (Step 2+)
+## Notes
 
-1. Add per-stage owner config (`pgmq` vs `graphile`).
-2. Shadow-enqueue one stage (`SENTIMENT`).
-3. Validate parity and reliability metrics.
-4. Cut over stage-by-stage with instant rollback.
+- `pipeline.run_stage` reuses existing Supabase Edge Functions (`normalizer`, `indexer`, `oracle-*`, etc.).
+- Retry behavior is handled by stage attempt limits and explicit re-enqueue in worker logic.
+- If Graphile enqueue is unavailable, SQL routing falls back to `pgmq`.

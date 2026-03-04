@@ -36,8 +36,8 @@ Ontic Strip ingests news articles from RSS feeds across the political spectrum, 
                ┌────────────────────────┼────────────────────────┐
                │                   Supabase                      │
                │                                                 │
-               │   PostgreSQL ───── Edge Functions ───── pgmq    │
-               │   + pgvector       (22 × Deno)       job queue  │
+               │   PostgreSQL ───── Edge Functions ─── Graphile  │
+               │   + pgvector       (22 × Deno)        Worker    │
                │                                                 │
                └────────────┬───────────────────┬────────────────┘
                             │                   │
@@ -45,7 +45,7 @@ Ontic Strip ingests news articles from RSS feeds across the political spectrum, 
                      (LLM gateway)        (web scrape)
 ```
 
-**Pattern:** Serverless SPA → BaaS. Zero custom servers — all backend logic runs as Supabase Edge Functions orchestrated by a pgmq message queue.
+**Pattern:** Serverless SPA → BaaS + Worker. Supabase Edge Functions handle analysis stages, while Graphile Worker orchestrates stage jobs.
 
 ---
 
@@ -55,7 +55,7 @@ Ontic Strip ingests news articles from RSS feeds across the political spectrum, 
 |---|---|
 | **Frontend** | React 18, TypeScript 5.8, Vite, React Router, TanStack Query |
 | **UI** | Tailwind CSS, shadcn/ui (Radix primitives), Lucide icons, Recharts |
-| **Backend** | 22 Supabase Edge Functions (Deno), pgmq job queue |
+| **Backend** | 22 Supabase Edge Functions (Deno), Graphile Worker job orchestration |
 | **Database** | PostgreSQL 15 + pgvector + pgmq |
 | **AI** | OpenRouter (multi-model), text-embedding-3-large, CFPO v2 prompts |
 | **Scraping** | Firecrawl, Inoreader RSS |
@@ -126,7 +126,7 @@ supabase/
   migrations/       SQL schema migrations
   functions/
     _shared/        Shared code — prompt templates, LLM client, utils
-    pipeline-worker/ pgmq job orchestrator
+    pipeline-worker/ legacy pgmq orchestrator
     rss-collector/   Feed ingestion
     oracle-*         AI analysis pipeline (7 stages)
     story-clusterer/ Multi-source story grouping
@@ -134,7 +134,7 @@ supabase/
     ...              22 functions total
 
 worker/
-  src/              Graphile Worker scaffold (step 1, shadow mode)
+  src/              Graphile Worker runtime (`pipeline.run_stage`)
 
 docs/               Architecture docs, runbooks, prompt spec
 ```

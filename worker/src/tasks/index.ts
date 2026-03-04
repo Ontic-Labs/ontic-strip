@@ -1,12 +1,56 @@
 import type { TaskList } from "graphile-worker";
 import { createClient } from "@supabase/supabase-js";
 
-type ShadowSentimentPayload = {
+type PipelineStagePayload = {
   document_id?: string;
   stage?: string;
   status_token?: string;
   attempt?: number;
   source?: string;
+};
+
+const MAX_ATTEMPTS = 3;
+
+const STAGE_MAX_ATTEMPTS: Record<string, number> = {
+  NORMALIZE: 2,
+  INDEX: 3,
+  CLASSIFY: 3,
+  EXTRACT: 3,
+  EVIDENCE: 3,
+  VERACITY: 5,
+  AGGREGATE: 3,
+  SENTIMENT: 2,
+  SYNTHESIS: 2,
+  IDEOLOGY: 2,
+  ENRICH: 4,
+};
+
+const STAGE_FUNCTION: Record<string, string> = {
+  NORMALIZE: "normalizer",
+  INDEX: "indexer",
+  CLASSIFY: "oracle-classifier",
+  EXTRACT: "oracle-extractor",
+  EVIDENCE: "oracle-evidence",
+  VERACITY: "oracle-veracity",
+  AGGREGATE: "aggregator",
+  SENTIMENT: "oracle-sentiment",
+  SYNTHESIS: "oracle-synthesis",
+  IDEOLOGY: "oracle-ideology",
+  ENRICH: "event-enricher",
+};
+
+const STAGE_EXPECTED_STATUS: Record<string, string> = {
+  NORMALIZE: "normalizing",
+  INDEX: "pending",
+  CLASSIFY: "classifying",
+  EXTRACT: "extracting",
+  EVIDENCE: "verifying",
+  VERACITY: "verifying",
+  AGGREGATE: "aggregated",
+  SENTIMENT: "aggregated",
+  SYNTHESIS: "aggregated",
+  IDEOLOGY: "aggregated",
+  ENRICH: "aggregated",
 };
 
 function getRequiredEnv(key: string): string {
@@ -27,85 +71,184 @@ function buildSupabaseAdminClient() {
   };
 }
 
-export const taskList: TaskList = {
-  "pipeline.shadow_sentiment": async (rawPayload, helpers) => {
-    const payload = (rawPayload ?? {}) as ShadowSentimentPayload;
-    const startedAt = Date.now();
-    const stage = "SENTIMENT";
-    const documentId = payload.document_id ?? null;
+async function runPipelineStage(rawPayload: unknown, helpers: any) {
+  const payload = (rawPayload ?? {}) as PipelineStagePayload;
+  const stage = String(payload.stage || "").toUpperCase();
+  const functionName = STAGE_FUNCTION[stage];
+  const expectedStatus = STAGE_EXPECTED_STATUS[stage] ?? null;
+  const attempt = Number.isFinite(payload.attempt) && (payload.attempt ?? 0) > 0
+    ? Number(payload.attempt)
+    : 1;
+  const stageMaxAttempts = STAGE_MAX_ATTEMPTS[stage] ?? MAX_ATTEMPTS;
+  const documentId = payload.document_id ?? null;
 
-    if (!documentId) {
-      throw new Error("pipeline.shadow_sentiment requires payload.document_id");
-    }
+  if (!documentId) {
+    throw new Error("pipeline.run_stage requires payload.document_id");
+  }
 
-    const { supabaseUrl, serviceRoleKey, client } = buildSupabaseAdminClient();
+  if (!functionName) {
+    throw new Error(`pipeline.run_stage received unknown stage: ${stage}`);
+  }
 
-    let status: "ok" | "failed" = "ok";
-    let httpStatus: number | null = null;
-    let responseBody: unknown = null;
-    let errorMessage: string | null = null;
+  const startedAt = Date.now();
+  const { supabaseUrl, serviceRoleKey, client } = buildSupabaseAdminClient();
 
-    try {
-      const resp = await fetch(`${supabaseUrl}/functions/v1/oracle-sentiment`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          document_id: documentId,
-          batch_size: 5,
-        }),
+  const { data: pausedData } = await client.rpc("pipeline_stage_is_paused", {
+    p_stage: stage,
+  });
+
+  if (pausedData === true) {
+    await client.rpc("pipeline_record_stage_metric", {
+      p_document_id: documentId,
+      p_stage: stage,
+      p_status: "deferred",
+      p_attempt: attempt,
+      p_duration_ms: Date.now() - startedAt,
+      p_error_message: "stage_paused",
+    });
+    helpers.logger.info("pipeline.run_stage deferred (paused)", { stage, documentId, attempt });
+    return;
+  }
+
+  if (expectedStatus) {
+    const { data: doc } = await client
+      .from("documents")
+      .select("pipeline_status")
+      .eq("id", documentId)
+      .single();
+
+    if (!doc || doc.pipeline_status !== expectedStatus) {
+      await client.rpc("pipeline_record_stage_metric", {
+        p_document_id: documentId,
+        p_stage: stage,
+        p_status: "skipped",
+        p_attempt: attempt,
+        p_duration_ms: Date.now() - startedAt,
+        p_error_message: `expected_${expectedStatus}_got_${doc?.pipeline_status ?? "null"}`,
       });
 
-      httpStatus = resp.status;
-      const text = await resp.text();
-      try {
-        responseBody = text ? JSON.parse(text) : null;
-      } catch {
-        responseBody = { raw: text.slice(0, 2000) };
-      }
-
-      if (!resp.ok) {
-        status = "failed";
-        errorMessage = `oracle-sentiment returned ${resp.status}`;
-      }
-    } catch (error) {
-      status = "failed";
-      errorMessage = error instanceof Error ? error.message : String(error);
-    }
-
-    const durationMs = Date.now() - startedAt;
-
-    const { error: insertError } = await client
-      .from("graphile_shadow_runs")
-      .insert({
+      helpers.logger.info("pipeline.run_stage skipped (status mismatch)", {
         stage,
-        document_id: documentId,
-        status,
-        http_status: httpStatus,
-        duration_ms: durationMs,
-        source: "graphile_worker",
-        error_message: errorMessage,
-        payload,
-        response: responseBody,
+        documentId,
+        expectedStatus,
+        actualStatus: doc?.pipeline_status ?? null,
       });
-
-    if (insertError) {
-      helpers.logger.error("Failed to persist graphile shadow run", { insertError });
+      return;
     }
+  }
 
-    helpers.logger.info("pipeline.shadow_sentiment completed", {
-      stage,
-      documentId,
-      status,
-      httpStatus,
-      durationMs,
-      errorMessage,
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ document_id: documentId }),
     });
 
-    if (status === "failed") {
-      throw new Error(errorMessage ?? "pipeline.shadow_sentiment failed");
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`${functionName} returned ${resp.status}: ${errText.slice(0, 200)}`);
     }
+
+    await resp.json();
+
+    if (stage === "VERACITY") {
+      const { data: remaining } = await client
+        .from("claims")
+        .select("id")
+        .eq("document_id", documentId)
+        .is("veracity_label", null)
+        .limit(1);
+
+      const { data: docCheck } = await client
+        .from("documents")
+        .select("pipeline_status")
+        .eq("id", documentId)
+        .single();
+
+      if (remaining && remaining.length > 0 && docCheck?.pipeline_status === "verifying") {
+        await client.rpc("enqueue_graphile_stage_job", {
+          p_doc_id: documentId,
+          p_stage: "VERACITY",
+          p_status_token: "verifying",
+          p_attempt: 1,
+        });
+      }
+    }
+
+    await client.rpc("pipeline_record_stage_metric", {
+      p_document_id: documentId,
+      p_stage: stage,
+      p_status: "ok",
+      p_attempt: attempt,
+      p_duration_ms: Date.now() - startedAt,
+      p_error_message: null,
+    });
+
+    await client.rpc("pipeline_stage_mark_success", { p_stage: stage });
+
+    helpers.logger.info("pipeline.run_stage completed", {
+      stage,
+      documentId,
+      attempt,
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (error) {
+    const errMessage = error instanceof Error ? error.message : String(error);
+
+    await client.rpc("pipeline_record_stage_metric", {
+      p_document_id: documentId,
+      p_stage: stage,
+      p_status: "failed",
+      p_attempt: attempt,
+      p_duration_ms: Date.now() - startedAt,
+      p_error_message: errMessage,
+    });
+
+    await client.rpc("pipeline_stage_mark_failure", {
+      p_stage: stage,
+      p_reason: errMessage,
+    });
+
+    if (attempt < stageMaxAttempts) {
+      await client.rpc("enqueue_graphile_stage_job", {
+        p_doc_id: documentId,
+        p_stage: stage,
+        p_status_token: payload.status_token ?? expectedStatus ?? stage.toLowerCase(),
+        p_attempt: attempt + 1,
+      });
+    } else {
+      await client.from("pipeline_dlq").insert({
+        doc_id: documentId,
+        stage,
+        attempt,
+        error_message: errMessage,
+        payload,
+      });
+    }
+
+    helpers.logger.error("pipeline.run_stage failed", {
+      stage,
+      documentId,
+      attempt,
+      errorMessage: errMessage,
+    });
+  }
+}
+
+export const taskList: TaskList = {
+  "pipeline.run_stage": async (rawPayload, helpers) => {
+    await runPipelineStage(rawPayload, helpers);
+  },
+
+  "pipeline.shadow_sentiment": async (rawPayload, helpers) => {
+    const payload = (rawPayload ?? {}) as PipelineStagePayload;
+    await runPipelineStage({
+      ...payload,
+      stage: "SENTIMENT",
+      source: payload.source ?? "shadow_compat",
+    }, helpers);
   },
 };

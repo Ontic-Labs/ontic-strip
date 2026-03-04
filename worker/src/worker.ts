@@ -25,7 +25,7 @@ const runner = await run({
   noHandleSignals: false,
 });
 
-console.log("[graphile-worker] started in scaffold mode");
+console.log("[graphile-worker] started (pipeline.run_stage enabled)");
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
