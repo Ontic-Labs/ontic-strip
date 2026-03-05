@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -14,8 +15,9 @@ export default {
     },
     extend: {
       fontSize: {
-        xs: ["0.8125rem", { lineHeight: "1.2rem" }],
-        sm: ["0.9375rem", { lineHeight: "1.4rem" }],
+        xs: ["0.875rem", { lineHeight: "1.25rem" }],
+        sm: ["1rem", { lineHeight: "1.5rem" }],
+        base: ["1.0625rem", { lineHeight: "1.625rem" }],
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
@@ -103,5 +105,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;
