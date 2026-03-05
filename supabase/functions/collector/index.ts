@@ -266,14 +266,25 @@ serve(async (req) => {
           errors.push(`Doc ${articleUrl}: ${insertErr.message}`);
         } else {
           totalCollected++;
-          // Enqueue into pgmq pipeline
+          // Enqueue NORMALIZE stage via Graphile Worker
           if (insertedDoc?.id) {
             try {
-              await supabase.rpc("pgmq_send", {
-                queue_name: "pipeline_jobs",
-                msg: { doc_id: insertedDoc.id, stage: "NORMALIZE", attempt: 1 },
+              const { data: enqueued, error: enqueueErr } = await supabase.rpc("enqueue_graphile_stage_job", {
+                p_doc_id: insertedDoc.id,
+                p_stage: "NORMALIZE",
+                p_status_token: "normalizing",
+                p_attempt: 1,
               });
+
+              if (enqueueErr) {
+                errors.push(`Enqueue ${insertedDoc.id}: ${enqueueErr.message}`);
+                console.warn(`Queue enqueue RPC failed for ${insertedDoc.id}:`, enqueueErr.message);
+              } else if (enqueued !== true) {
+                errors.push(`Enqueue ${insertedDoc.id}: enqueue_graphile_stage_job returned false`);
+                console.warn(`Queue enqueue returned false for ${insertedDoc.id}`);
+              }
             } catch (qErr) {
+              errors.push(`Enqueue ${insertedDoc.id}: ${qErr instanceof Error ? qErr.message : String(qErr)}`);
               console.warn(`Queue enqueue failed for ${insertedDoc.id}:`, qErr);
             }
           }

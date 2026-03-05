@@ -103,7 +103,7 @@ serve(async (req) => {
       // No body
     }
 
-    // If called with a specific document_id (from pipeline-worker), process only that doc
+    // If called with a specific document_id (from Graphile worker), process only that doc
     // Otherwise fall back to batch pickup (for manual/cron invocation)
     let docs: Array<{ id: string; url: string; title: string }>;
     if (documentId) {

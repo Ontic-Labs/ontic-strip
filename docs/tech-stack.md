@@ -31,15 +31,15 @@
   Supabase
       ├── PostgreSQL + pgvector
       ├── Edge Functions (Deno)
-      └── pgmq (job queue)
+      └── Graphile Worker (Node.js job orchestration)
             │
       ┌─────┴─────┐
   OpenRouter   Firecrawl
   (LLM)       (scrape)
 ```
 
-**Pattern:** Serverless SPA → BaaS. Zero custom servers — all backend logic runs
-as Supabase Edge Functions orchestrated by a pgmq message queue.
+**Pattern:** Serverless SPA → BaaS + Worker. Zero custom servers for the frontend — all backend
+logic runs as Supabase Edge Functions orchestrated by Graphile Worker.
 
 ---
 
@@ -146,7 +146,7 @@ src/components/
 | **Processing** | `normalizer`, `indexer` |
 | **AI Oracles** | `oracle-classifier`, `oracle-extractor`, `oracle-evidence`, `oracle-veracity`, `oracle-sentiment`, `oracle-synthesis`, `oracle-ideology` |
 | **Aggregation** | `aggregator`, `event-enricher`, `story-clusterer` |
-| **Orchestration** | `pipeline-worker` |
+| **Orchestration** | Graphile Worker (Node.js) |
 | **Auth/Admin** | `inoreader-auth`, `feed-admin` |
 | **Utilities** | `firecrawl-scrape`, `generate-feed-description`, `seed-propositions`, `sitemap` |
 
@@ -212,7 +212,6 @@ All models use the OpenAI-compatible chat completions API via OpenRouter.
 
 **Extensions:**
 - **pgvector** — vector similarity search for embeddings
-- **pgmq** — lightweight message queue for pipeline orchestration
 
 **Schema:** 35 migrations, ~1200 lines of SQL.
 
@@ -238,7 +237,7 @@ All models use the OpenAI-compatible chat completions API via OpenRouter.
 **RPC Functions:**
 - `match_segments` — pgvector cosine similarity search
 - `match_event_centroids` — event embedding crosswalk
-- `pgmq_read` / `pgmq_send` / `pgmq_archive` — queue operations
+- `enqueue_graphile_stage_job` — enqueue pipeline stage jobs into Graphile Worker
 
 ### Type Generation
 
@@ -365,8 +364,7 @@ and `--check` (CI validation) modes.
 ### Edge Function Deployment
 
 All 21 functions deployed to Supabase's global Deno runtime. JWT verification
-disabled per-function in `supabase/config.toml` (except `pipeline-worker` which
-uses default settings).
+disabled per-function in `supabase/config.toml`.
 
 ### Static Assets
 

@@ -149,10 +149,6 @@ for the AI function development workflow.
 
 ## Contributor To-Do
 
-- Queue orchestration migration (planned, not immediate): keep the current
-  Supabase `pgmq` + `pipeline-worker` flow for now, then migrate job orchestration
-  to an always-on Node service using Graphile Worker in a later phase.
-
 ### Database Migrations
 
 - Use the Supabase CLI to create migrations:

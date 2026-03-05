@@ -45,9 +45,6 @@ verify_jwt = false
 [functions.generate-feed-description]
 verify_jwt = true
 
-[functions.pipeline-worker]
-verify_jwt = false
-
 [functions.feed-admin]
 verify_jwt = true
 

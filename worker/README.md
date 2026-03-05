@@ -4,16 +4,14 @@ This directory contains the Graphile Worker runtime for pipeline stage orchestra
 
 ## Purpose
 
-- Provide an always-on Node worker for pipeline execution.
+- Provide an always-on Node.js worker for pipeline job execution.
 - Execute stage jobs via `pipeline.run_stage` and invoke existing Supabase Edge Functions.
-- Support per-stage routing through `pipeline_stage_ownership`.
 
 ## Current state
 
-- Includes tasks:
-  - `pipeline.run_stage` (primary)
-  - `pipeline.shadow_sentiment` (compatibility alias)
-- Stage routing is controlled in SQL (`pipeline_stage_ownership`).
+- Single task: `pipeline.run_stage` (handles all 11 pipeline stages).
+- Per-stage retry limits, idempotency guards, pause support, and DLQ routing.
+- All enqueue paths route exclusively through Graphile Worker.
 
 ## Local run
 
@@ -36,5 +34,5 @@ Required for stage execution:
 ## Notes
 
 - `pipeline.run_stage` reuses existing Supabase Edge Functions (`normalizer`, `indexer`, `oracle-*`, etc.).
-- Retry behavior is handled by stage attempt limits and explicit re-enqueue in worker logic.
-- If Graphile enqueue is unavailable, SQL routing falls back to `pgmq`.
+- Retry behavior is handled by per-stage attempt limits and explicit re-enqueue in worker logic.
+- Failed jobs exceeding max attempts are routed to the `pipeline_dlq` table.

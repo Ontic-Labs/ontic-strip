@@ -56,7 +56,7 @@ Ontic Strip ingests news articles from RSS feeds across the political spectrum, 
 | **Frontend** | React 18, TypeScript 5.8, Vite, React Router, TanStack Query |
 | **UI** | Tailwind CSS, shadcn/ui (Radix primitives), Lucide icons, Recharts |
 | **Backend** | 22 Supabase Edge Functions (Deno), Graphile Worker job orchestration |
-| **Database** | PostgreSQL 15 + pgvector + pgmq |
+| **Database** | PostgreSQL 15 + pgvector |
 | **AI** | OpenRouter (multi-model), text-embedding-3-large, CFPO v2 prompts |
 | **Scraping** | Firecrawl, Inoreader RSS |
 | **Quality** | Biome (lint + format), Vitest, Husky + lint-staged |
@@ -126,7 +126,6 @@ supabase/
   migrations/       SQL schema migrations
   functions/
     _shared/        Shared code — prompt templates, LLM client, utils
-    pipeline-worker/ legacy pgmq orchestrator
     rss-collector/   Feed ingestion
     oracle-*         AI analysis pipeline (7 stages)
     story-clusterer/ Multi-source story grouping
@@ -151,8 +150,7 @@ docs/               Architecture docs, runbooks, prompt spec
 | `npm run lint` | Biome lint check |
 | `npm run lint:fix` | Auto-fix lint + format |
 | `npm run check` | Full check (lint + build) |
-| `npm run worker:dev` | Run Graphile worker scaffold locally (optional) |
-| `npm run shadow:parity-report` | Compare pgmq vs Graphile shadow outcomes for a stage window |
+| `npm run worker:dev` | Run Graphile Worker locally |
 | `npm run supabase:types` | Generate DB types from remote |
 | `npm run supabase:types:local` | Generate DB types from local |
 

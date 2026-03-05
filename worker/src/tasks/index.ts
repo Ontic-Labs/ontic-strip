@@ -242,13 +242,4 @@ export const taskList: TaskList = {
   "pipeline.run_stage": async (rawPayload, helpers) => {
     await runPipelineStage(rawPayload, helpers);
   },
-
-  "pipeline.shadow_sentiment": async (rawPayload, helpers) => {
-    const payload = (rawPayload ?? {}) as PipelineStagePayload;
-    await runPipelineStage({
-      ...payload,
-      stage: "SENTIMENT",
-      source: payload.source ?? "shadow_compat",
-    }, helpers);
-  },
 };

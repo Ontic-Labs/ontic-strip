@@ -988,21 +988,6 @@ export type Database = {
           text_content: string
         }[]
       }
-      pgmq_archive: {
-        Args: { msg_id: number; queue_name: string }
-        Returns: boolean
-      }
-      pgmq_read: {
-        Args: { qty: number; queue_name: string; vt: number }
-        Returns: {
-          enqueued_at: string
-          message: Json
-          msg_id: number
-          read_ct: number
-          visible_at: string
-        }[]
-      }
-      pgmq_send: { Args: { msg: Json; queue_name: string }; Returns: number }
       pipeline_ops_summary: { Args: never; Returns: Json }
       pipeline_reap_poisoned: {
         Args: { p_batch_size?: number; p_max_read_ct?: number }

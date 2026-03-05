@@ -116,3 +116,27 @@
     font-family: "JetBrains Mono", monospace;
   }
 }
+
+@layer utilities {
+  .text-\[9px\] {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+  }
+
+  .text-\[10px\] {
+    font-size: 0.75rem;
+    line-height: 1.1rem;
+  }
+
+  @media (max-width: 640px) {
+    .text-\[9px\] {
+      font-size: 0.75rem;
+      line-height: 1.1rem;
+    }
+
+    .text-\[10px\] {
+      font-size: 0.8125rem;
+      line-height: 1.2rem;
+    }
+  }
+}

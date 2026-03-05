@@ -16,8 +16,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint:all && npm run build",
-    "queue:load-test": "node ./scripts/queue-load-test.mjs",
-    "shadow:parity-report": "node ./scripts/graphile-shadow-parity-report.mjs",
     "worker:install": "npm --prefix worker install",
     "worker:dev": "npm --prefix worker run dev",
     "worker:build": "npm --prefix worker run build",

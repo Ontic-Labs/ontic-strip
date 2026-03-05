@@ -80,21 +80,6 @@ function parseRSSItems(xml: string): Array<{
   return items;
 }
 
-async function wakePipelineWorker(supabaseUrl: string, serviceRoleKey: string): Promise<void> {
-  try {
-    await fetch(`${supabaseUrl}/functions/v1/pipeline-worker`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ max_messages: 30 }),
-    });
-  } catch (error) {
-    console.warn("Failed to wake pipeline-worker:", error);
-  }
-}
-
 async function collectFeed(
   supabase: any,
   feed: { id: string; url: string; publisher_name: string },
@@ -152,11 +137,22 @@ async function collectFeed(
         totalCollected++;
         if (insertedDoc?.id) {
           try {
-            await supabase.rpc("pgmq_send", {
-              queue_name: "pipeline_jobs",
-              msg: { doc_id: insertedDoc.id, stage: "NORMALIZE", attempt: 1 },
+            const { data: enqueued, error: enqueueErr } = await supabase.rpc("enqueue_graphile_stage_job", {
+              p_doc_id: insertedDoc.id,
+              p_stage: "NORMALIZE",
+              p_status_token: "normalizing",
+              p_attempt: 1,
             });
+
+            if (enqueueErr) {
+              errors.push(`${item.link}: enqueue failed (${enqueueErr.message})`);
+              console.warn(`Queue enqueue RPC failed for ${insertedDoc.id}:`, enqueueErr.message);
+            } else if (enqueued !== true) {
+              errors.push(`${item.link}: enqueue_graphile_stage_job returned false`);
+              console.warn(`Queue enqueue returned false for ${insertedDoc.id}`);
+            }
           } catch (qErr) {
+            errors.push(`${item.link}: enqueue failed (${qErr instanceof Error ? qErr.message : String(qErr)})`);
             console.warn(`Queue enqueue failed for ${insertedDoc.id}:`, qErr);
           }
         }
@@ -204,9 +200,6 @@ serve(async (req) => {
       }
 
       const result = await collectFeed(supabase, feed, itemLimit);
-      if (result.collected > 0) {
-        await wakePipelineWorker(supabaseUrl, serviceRoleKey);
-      }
       console.log(`RSS collector: ${result.collected} from ${feed.publisher_name}`);
 
       return new Response(
@@ -266,10 +259,6 @@ serve(async (req) => {
     }
 
     console.log(`RSS bulk poll: ${totalCollected} articles from ${batch.length} feeds`);
-
-    if (totalCollected > 0) {
-      await wakePipelineWorker(supabaseUrl, serviceRoleKey);
-    }
 
     return new Response(
       JSON.stringify({
