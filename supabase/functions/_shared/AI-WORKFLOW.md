@@ -24,9 +24,9 @@
 ## 1. Pipeline Overview
 
 Every news article passes through a **10-stage sequential pipeline** followed
-by **5 parallel post-processing stages**. The orchestrator (`pipeline-worker`)
-reads jobs from a **pgmq** queue and dispatches each stage as an HTTP call to
-the corresponding Supabase Edge Function.
+by **5 parallel post-processing stages**. The orchestrator (Graphile Worker)
+picks jobs from the `graphile_worker.jobs` table and dispatches each stage as
+an HTTP call to the corresponding Supabase Edge Function.
 
 ```
  ┌─────────────────────┐
@@ -172,11 +172,11 @@ interface CfpoTemplate {
 **collector** pulls up to 50 unread items from Inoreader, refreshing OAuth
 tokens as needed. Deduplicates by URL, inserts with RSS summary as
 `raw_content`, sets `pipeline_status: "normalizing"`, and enqueues
-`{stage: "NORMALIZE"}` into pgmq.
+`{stage: "NORMALIZE"}` into Graphile Worker.
 
 **rss-collector** directly fetches and parses RSS/Atom XML via regex. Supports
 single-feed or bulk polling (filters by `polling_interval_minutes`). Processes
-max 10 feeds per cycle.
+max 10 feeds per cycle. Enqueues `{stage: "NORMALIZE"}` into Graphile Worker.
 
 ### 5.2 Normalization
 
@@ -465,18 +465,23 @@ Implemented in `ideology-irt.ts` + `ideology-constants.ts`.
 ### 7.2 RAG Retrieval (oracle-ideology)
 
 1. Cosine similarity between segment embeddings and proposition embeddings.
-2. Filtering: `PROP_SIM_THRESHOLD` (0.40) with keyword overlap, or
-   `PROP_SIM_THRESHOLD_NO_KEYWORDS` (0.42) without.
-3. Cross-domain penalty: −0.05; keyword boost: +0.02.
-4. Top 5 propositions per segment after filtering.
+2. Filtering: `PROP_SIM_THRESHOLD` (0.32) with keyword overlap, or
+   `PROP_SIM_THRESHOLD_NO_KEYWORDS` (0.35) without.
+3. Cross-domain penalty: −0.05; keyword boost: +0.03.
+4. Top 6 propositions per segment after filtering.
 5. Top 8 segments sent to LLM for stance extraction.
 
 ### 7.3 Stance Extraction
 
+Framing-aware extraction (v2): LLM analyzes both explicit statements and
+implicit framing signals (source selection, language, emphasis, omission).
+
 LLM classifies each segment-proposition pair as:
 - `PRO` / `ANTI` / `NEUTRAL` / `UNCLEAR`
-- With confidence (0.0–1.0) and verbatim quoted text justification.
-- Confidence thresholds: accept ≥ 0.70, low_confidence ≥ 0.50, below 0.30 → UNCLEAR.
+- With confidence (0.0–1.0) and relevant text span justification.
+- Confidence thresholds: accept ≥ 0.50, low_confidence 0.50–0.69, below 0.30 → discard.
+- NEUTRAL requires genuinely balanced treatment; one-sided source selection is not NEUTRAL.
+- Quote validation: fuzzy matching (case-insensitive + 80% ordered-word fallback).
 
 ### 7.4 MAP Estimation (Rasch / 1PL)
 
@@ -500,7 +505,7 @@ Hessian floored at −0.01 for numerical stability. Step-size capped at ±2.0.
 
 **Standard error:** $\text{SE} = \sqrt{-1/H}$
 
-**Minimum signal:** Requires ≥ 3 valid stances (PRO/ANTI with confidence ≥ 0.50).
+**Minimum signal:** Requires ≥ 2 valid stances (PRO/ANTI with confidence ≥ 0.50).
 
 **Domain cap:** No single domain may contribute more than 40% of votes.
 
@@ -556,21 +561,20 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
 
 ## 9. Orchestration & Retry
 
-`pipeline-worker` is the central dispatcher:
+Graphile Worker (`worker/src/tasks/index.ts`) is the central dispatcher:
 
-1. Pops up to **20 messages** from pgmq queue `pipeline_jobs`.
-2. Deduplicates by `doc_id:stage` composite key.
-3. Processes with **concurrency limit of 6**.
-4. **Idempotency guard:** Checks `documents.pipeline_status` matches expected
+1. Picks jobs from the `graphile_worker.jobs` table (task: `pipeline.run_stage`).
+2. **Idempotency guard:** Checks `documents.pipeline_status` matches expected
    state before invoking each stage.
-5. **Retry:** Exponential backoff, max 3 attempts per message.
-6. **Dead-letter:** After 3 failures, moves to `pipeline_dlq` table.
-7. **VERACITY re-enqueue:** If unscored claims remain after veracity, re-sends
+3. **Pause support:** Defers jobs when a stage is paused via `pipeline_control`.
+4. **Retry:** Per-stage max attempts (2–5 depending on stage), explicit re-enqueue on failure.
+5. **Dead-letter:** After max attempts, moves to `pipeline_dlq` table.
+6. **VERACITY re-enqueue:** If unscored claims remain after veracity, re-sends
    the job for another pass.
 
 **Stage routing map:**
 
-| pgmq Stage | Edge Function | Expected Status |
+| Stage | Edge Function | Expected Status |
 |---|---|---|
 | `NORMALIZE` | `normalizer` | `normalizing` |
 | `INDEX` | `indexer` | `pending` |
@@ -601,7 +605,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │ → documents     │
                           │ → feeds         │
                           └────────┬────────┘
-                                   │ pgmq: NORMALIZE
+                                   │ Graphile: NORMALIZE
                           ┌────────▼────────┐
                           │   normalizer    │
                           │                 │
@@ -611,7 +615,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │ → documents     │
                           │   .normalized   │
                           └────────┬────────┘
-                                   │ pgmq: INDEX
+                                   │ Graphile: INDEX
                           ┌────────▼────────┐
                           │   indexer       │
                           │                 │
@@ -620,7 +624,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │ → segments      │
                           │   (+ embeddings)│
                           └────────┬────────┘
-                                   │ pgmq: CLASSIFY
+                                   │ Graphile: CLASSIFY
                           ┌────────▼────────┐
                           │  oracle-        │
                           │  classifier     │
@@ -631,7 +635,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │   .classification│
                           │   .label        │
                           └────────┬────────┘
-                                   │ pgmq: EXTRACT
+                                   │ Graphile: EXTRACT
                           ┌────────▼────────┐
                           │  oracle-        │
                           │  extractor      │
@@ -641,7 +645,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │ → claims        │
                           │   (+ SIRE)      │
                           └────────┬────────┘
-                                   │ pgmq: EVIDENCE
+                                   │ Graphile: EVIDENCE
                           ┌────────▼────────┐
                           │  oracle-        │
                           │  evidence       │
@@ -651,7 +655,7 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
                           │                 │
                           │ → evidence      │
                           └────────┬────────┘
-                                   │ pgmq: VERACITY
+                                   │ Graphile: VERACITY
                           ┌────────▼────────┐
                           │  oracle-        │
                           │  veracity       │
@@ -711,4 +715,4 @@ SHA256( eventType | geoPrimary | timeBucket | sortedEntities )
 | `story_clusters` | story-clusterer | Cluster metadata (title, summary) |
 | `story_cluster_members` | story-clusterer | Document ↔ cluster membership |
 | `events` | event-enricher | Canonical events with centroids |
-| `pipeline_dlq` | pipeline-worker | Dead-lettered failed jobs |
+| `pipeline_dlq` | Graphile Worker | Dead-lettered failed jobs |

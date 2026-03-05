@@ -78,16 +78,28 @@ serve(async (req) => {
       return respond({ scored: false, reason: "no_segments_with_embeddings" });
     }
 
-    console.log(`DIAG: ${segments.length} segs, embType=${typeof segments[0]?.embedding}, tokCount=${segments[0]?.token_count}`);
-    try {
-      const testEmb = segments[0]?.embedding;
-      if (testEmb) {
-        const p = typeof testEmb === "string" ? JSON.parse(testEmb) : testEmb;
-        console.log(`DIAG: embLen=${Array.isArray(p) ? p.length : "notArr"}, first3=${JSON.stringify(p?.slice?.(0,3))}`);
-      } else {
-        console.log(`DIAG: embedding is falsy: ${testEmb}`);
-      }
-    } catch (e) { console.log(`DIAG: embed parse err: ${e}`); }
+    // 1b. Fetch document title for article-level context
+    const { data: docMeta } = await supabase
+      .from("documents")
+      .select("title")
+      .eq("id", documentId)
+      .single();
+
+    // Build article lead from first ~150 words of ordered segments
+    const sortedSegs = [...segments].sort(
+      (a, b) => (a.position_index ?? 0) - (b.position_index ?? 0)
+    );
+    let leadWords = 0;
+    const leadParts: string[] = [];
+    for (const s of sortedSegs) {
+      if (leadWords >= 150) break;
+      const words = (s.text_content || "").split(/\s+/);
+      leadParts.push(s.text_content);
+      leadWords += words.length;
+    }
+    const articleContext = docMeta?.title
+      ? { title: docMeta.title, lead: leadParts.join(" ").slice(0, 800) }
+      : undefined;
 
     // 2. Load active propositions
     const { data: propositions, error: propErr } = await supabase
@@ -167,7 +179,8 @@ serve(async (req) => {
       try {
         const userPrompt = buildStanceUserPrompt(
           seg.text_content,
-          matches.map((p) => ({ proposition_id: p.proposition_id, text: p.text }))
+          matches.map((p) => ({ proposition_id: p.proposition_id, text: p.text })),
+          articleContext,
         );
 
         const { content } = await callLlm({
@@ -191,22 +204,28 @@ serve(async (req) => {
           stances = JSON.parse(content);
           if (!Array.isArray(stances)) stances = [stances];
         } catch {
-          console.warn(`Stance parse error for segment ${seg.id}:`, content.slice(0, 200));
+          console.warn(`Stance parse error for segment ${seg.id}:`, content.slice(0, 300));
           continue;
         }
 
         for (const s of stances) {
-          if (!s.proposition_id || !s.stance || typeof s.confidence !== "number") continue;
+          if (!s.proposition_id || !s.stance || typeof s.confidence !== "number") {
+            continue;
+          }
 
           let finalStance = s.stance;
-          if (s.confidence < STANCE_CONFIDENCE_UNCLEAR) continue;
+          if (s.confidence < STANCE_CONFIDENCE_UNCLEAR) {
+            continue;
+          }
           if (s.confidence < 0.50) finalStance = "UNCLEAR";
-          if (s.quoted_text && !seg.text_content.includes(s.quoted_text)) {
+          if (s.quoted_text && !fuzzyQuoteMatch(seg.text_content, s.quoted_text)) {
             finalStance = "UNCLEAR";
           }
 
           const prop = matches.find((p) => p.proposition_id === s.proposition_id);
-          if (!prop) continue;
+          if (!prop) {
+            continue;
+          }
 
           await supabase.from("stance_extractions").upsert({
             segment_id: seg.id,
@@ -237,38 +256,38 @@ serve(async (req) => {
       }
     }
 
-    // 5a. Deterministic domain cap: no single domain contributes > 40% of stances
-    // If exceeded, drop lowest-confidence stances from that domain
+    // 5a. Deterministic domain cap: no single domain contributes > 40% of stances.
+    // Only apply when multiple domains are present — single-domain articles are valid.
     const domainCounts: Record<string, number> = {};
     for (const v of allStanceVotes) {
       domainCounts[v.domain || "unknown"] = (domainCounts[v.domain || "unknown"] || 0) + 1;
     }
-    const maxPerDomain = Math.max(1, Math.ceil(allStanceVotes.length * DOMAIN_CAP_FRACTION));
-    for (const [domain, count] of Object.entries(domainCounts)) {
-      if (count > maxPerDomain) {
-        // Get indices of this domain's votes, sorted by confidence ascending (lowest first)
-        const domainIndices = allStanceVotes
-          .map((v, i) => ({ idx: i, conf: v.confidence, dom: v.domain || "unknown" }))
-          .filter((v) => v.dom === domain)
-          .sort((a, b) => a.conf - b.conf);
-        // Remove lowest-confidence votes until at cap
-        const toRemove = new Set(domainIndices.slice(0, count - maxPerDomain).map((v) => v.idx));
-        // Filter in reverse index order to preserve indices
-        for (let i = allStanceVotes.length - 1; i >= 0; i--) {
-          if (toRemove.has(i)) allStanceVotes.splice(i, 1);
+    const uniqueDomains = new Set(Object.keys(domainCounts));
+    if (uniqueDomains.size >= 2) {
+      const maxPerDomain = Math.max(1, Math.ceil(allStanceVotes.length * DOMAIN_CAP_FRACTION));
+      for (const [domain, count] of Object.entries(domainCounts)) {
+        if (count > maxPerDomain) {
+          const domainIndices = allStanceVotes
+            .map((v, i) => ({ idx: i, conf: v.confidence, dom: v.domain || "unknown" }))
+            .filter((v) => v.dom === domain)
+            .sort((a, b) => a.conf - b.conf);
+          const toRemove = new Set(domainIndices.slice(0, count - maxPerDomain).map((v) => v.idx));
+          for (let i = allStanceVotes.length - 1; i >= 0; i--) {
+            if (toRemove.has(i)) allStanceVotes.splice(i, 1);
+          }
         }
       }
     }
 
-    // 5b. Diversity guards: require ≥2 unique propositions and ≥2 domains
+    // 5b. Diversity guard: require ≥2 unique propositions (domain diversity no longer required —
+    // single-topic articles legitimately cover one domain; IRT SE reflects the uncertainty)
     const uniqueProps = new Set(allStanceVotes.map((v) => v.proposition_id));
-    const uniqueDomains = new Set(allStanceVotes.map((v) => v.domain || "unknown"));
 
     let docResult;
     let docEconomic: number | null = null;
     let docSocial: number | null = null;
 
-    if (uniqueProps.size < 2 || uniqueDomains.size < 2) {
+    if (uniqueProps.size < 2) {
       // Insufficient diversity → null score
       docResult = {
         score: null,
@@ -280,7 +299,7 @@ serve(async (req) => {
           : 0,
         iterations: 0,
         method: "map_irt" as const,
-        reason: uniqueDomains.size < 2 ? "single_domain_coverage" : "insufficient_proposition_diversity",
+        reason: "insufficient_proposition_diversity",
       };
     } else {
       // Document-level aggregation via MAP IRT on all collected votes
@@ -333,6 +352,7 @@ serve(async (req) => {
         segments_matched: segMatches.length,
         segments_processed: toProcess.length,
         segments_total: segments.length,
+        single_domain: uniqueDomains.size === 1,
       },
     }, { onConflict: "entity_type,entity_id" }).select();
 
@@ -449,4 +469,37 @@ function getDimensionForDomain(domain: string): string {
     corporate_governance: "economic",
   };
   return map[domain] || "general";
+}
+
+function fuzzyQuoteMatch(segmentText: string, quotedText: string): boolean {
+  // 1. Exact match (fast path)
+  if (segmentText.includes(quotedText)) return true;
+
+  // 2. Case-insensitive, whitespace-normalized match
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const normSeg = normalize(segmentText);
+  const normQuote = normalize(quotedText);
+  if (normSeg.includes(normQuote)) return true;
+
+  // 3. Fuzzy word-order match: for quotes >= 3 words, check if >= 80% of
+  //    quote words appear in order within the segment
+  const quoteWords = normQuote.split(/\s+/).filter((w) => w.length > 0);
+  if (quoteWords.length < 3) return false;
+
+  const segWords = normSeg.split(/\s+/);
+  let matched = 0;
+  let segIdx = 0;
+  for (const qw of quoteWords) {
+    while (segIdx < segWords.length) {
+      if (segWords[segIdx] === qw) {
+        matched++;
+        segIdx++;
+        break;
+      }
+      segIdx++;
+    }
+    if (segIdx >= segWords.length) break;
+  }
+
+  return matched / quoteWords.length >= 0.8;
 }

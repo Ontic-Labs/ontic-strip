@@ -108,13 +108,13 @@ export const PROMPT_REGISTRY: Record<string, PromptConfig> = {
   stance: {
     key: "stance",
     name: "Stance Extractor",
-    version: 1,
+    version: 2,
     status: "active",
     gateway: "openrouter",
     model: "google/gemini-2.5-flash",
     temperature: 0.1,
     maxTokens: 2000,
-    changeSummary: "Per-segment stance classification against proposition bank",
+    changeSummary: "v2: Framing-aware extraction for news; lower retrieval thresholds; fuzzy quote validation",
   },
   "event-classifier": {
     key: "event-classifier",

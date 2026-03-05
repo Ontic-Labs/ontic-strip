@@ -6,19 +6,19 @@
 // --------------- RAG Retrieval ---------------
 
 /** Final propositions after filtering */
-export const PROP_TOP_K_FINAL = 5;
+export const PROP_TOP_K_FINAL = 6;
 
 /** Base cosine similarity threshold (with keyword overlap) */
-export const PROP_SIM_THRESHOLD = 0.40;
+export const PROP_SIM_THRESHOLD = 0.32;
 
 /** Elevated threshold when no keyword overlap */
-export const PROP_SIM_THRESHOLD_NO_KEYWORDS = 0.42;
+export const PROP_SIM_THRESHOLD_NO_KEYWORDS = 0.35;
 
 /** Cross-domain similarity penalty */
 export const CROSS_DOMAIN_PENALTY = 0.05;
 
 /** Keyword overlap soft boost */
-export const KEYWORD_BOOST = 0.02;
+export const KEYWORD_BOOST = 0.03;
 
 // --------------- Stance Extraction ---------------
 
@@ -43,10 +43,10 @@ export const IRT_MAX_ITER = 10;
 export const IRT_CONVERGENCE_TOL = 0.001;
 
 /** Minimum valid stances (PRO/ANTI, conf ≥ 0.50) for scoring */
-export const IRT_MIN_STANCES = 3;
+export const IRT_MIN_STANCES = 2;
 
 /** Current scoring version */
-export const IDEOLOGY_SCORING_VERSION = 1;
+export const IDEOLOGY_SCORING_VERSION = 2;
 
 /** Maximum contribution from any single domain (40%) */
 export const DOMAIN_CAP_FRACTION = 0.40;

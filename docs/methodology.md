@@ -23,7 +23,7 @@ How Ontic Strip analyses news articles for evidence alignment, ideology, and fac
 
 ## 1. Pipeline Overview
 
-Every article passes through a ten-stage pipeline. Each stage is handled by a dedicated edge function, orchestrated by Postgres queues (pgmq) and stateless edge functions, with stage transitions managed by database triggers.
+Every article passes through a ten-stage pipeline. Each stage is handled by a dedicated edge function, orchestrated by Graphile Worker and stateless edge functions, with stage transitions managed by database triggers.
 
 1. **Collection** — RSS feeds are polled at configurable intervals (default: every 5 minutes). New article URLs are recorded and their raw HTML is fetched via Firecrawl.
 
@@ -165,10 +165,10 @@ For each segment with an embedding, the system retrieves the most relevant propo
 | Parameter | Value | Rationale |
 |---|---|---|
 | Initial K | 10 | Broad candidate pool |
-| Final K (after filtering) | 5 | Bounded LLM input within edge budget |
-| Similarity threshold (with keyword overlap) | ≥ 0.40 | Cosine similarity floor (precision-favoring) |
-| Similarity threshold (no keyword overlap) | ≥ 0.42 | Elevated floor compensates for missing lexical signal |
-| Keyword boost | +0.02 | Soft boost, not hard gate — preserves recall |
+| Final K (after filtering) | 6 | Bounded LLM input within edge budget |
+| Similarity threshold (with keyword overlap) | ≥ 0.32 | Cosine similarity floor (recall-favoring; LLM stance extraction is the discriminator) |
+| Similarity threshold (no keyword overlap) | ≥ 0.35 | Elevated floor compensates for missing lexical signal |
+| Keyword boost | +0.03 | Soft boost, not hard gate — preserves recall |
 | Cross-domain penalty | −0.05 | Reduces false matches across domains |
 | Min segment tokens | 20 | Skip fragments too short for stance |
 | Max segments scored per document | 8 | Deterministic selection: sorted by best_match_quality desc, then position_index asc. best_match_quality = max(adjusted_cosine_similarity) over retrieved propositions for that segment. Bounds LLM calls within 60s edge budget. |
@@ -176,29 +176,41 @@ For each segment with an embedding, the system retrieves the most relevant propo
 **False-positive mitigation:**
 
 1. **Domain filter:** Non-political segments (sports, entertainment, weather) skip retrieval entirely.
-2. **Keyword overlap (soft boost):** If ≥1 keyword overlaps between proposition keywords and segment text → +0.02 similarity boost. No overlap → elevated floor of 0.42 instead of 0.40.
+2. **Keyword overlap (soft boost):** If ≥1 keyword overlaps between proposition keywords and segment text → +0.03 similarity boost. No overlap → elevated floor of 0.35 instead of 0.32.
 3. **Similarity floor:** Hard reject any match below the applicable threshold regardless of rank.
 4. **Cross-domain penalty:** If proposition domain ≠ segment detected domain, apply −0.05 before ranking.
+5. **LLM as discriminator:** Lower retrieval thresholds admit more candidates, but the stance extraction LLM classifies tangential matches as NEUTRAL or UNCLEAR. This two-stage design favors recall at retrieval and precision at extraction.
 
 ---
 
 ## 6. Stance Extraction
 
-For each segment–proposition pair, an LLM classifies the segment's stance toward the policy proposition. The classifier determines whether the text **supports (PRO)**, **opposes (ANTI)**, is **neutral toward (NEUTRAL)**, or provides **insufficient signal about (UNCLEAR)** the proposition.
+For each segment–proposition pair, an LLM classifies the segment's stance toward the policy proposition. The classifier determines whether the text **supports (PRO)**, **opposes (ANTI)**, is **genuinely balanced toward (NEUTRAL)**, or provides **insufficient signal about (UNCLEAR)** the proposition.
+
+**Framing-aware extraction (v2):**
+
+News articles reveal ideological stance not only through explicit advocacy but also through *framing* — editorial choices about source selection, emphasis, language, proportion, and omission. The stance extractor analyzes both explicit statements and implicit framing signals:
+
+- **Source selection:** Quoting predominantly one-sided sources indicates a lean toward that side.
+- **Language choices:** Loaded or partisan terminology ("tax relief" vs. "tax cuts", "undocumented" vs. "illegal") signals alignment.
+- **Emphasis and proportion:** Devoting more space to one side's arguments indicates a lean.
+- **Omission:** Discussing a policy without mentioning well-known counterarguments suggests alignment.
+- **Attribution framing:** Distancing language ("critics claim") vs. legitimizing language ("experts note") reveals editorial positioning.
 
 **Extraction rules:**
 
-- Judgment based *only* on what the text explicitly states or directly implies — never from outlet identity, author, or publication.
+- Judgment based on both explicit text content and implicit framing signals — never from outlet identity, author, or publication.
 - Sentiment (positive/negative tone) ≠ stance (policy position). A negative sentiment about a policy does not necessarily mean ANTI.
-- Reporting that others hold a position without endorsing it → NEUTRAL.
-- A verbatim quoted span from the text must justify the label. If the quoted span is not a substring of the segment text, the extraction is rejected as UNCLEAR.
+- NEUTRAL requires genuinely balanced treatment: roughly equal voice to both sides, or purely procedural content. One-sided source selection is not NEUTRAL.
+- A relevant text span must justify the label. Minor paraphrasing is acceptable; the span is validated via fuzzy matching (case-insensitive, whitespace-normalized, with 80% ordered-word fallback for spans ≥ 3 words). Only spans failing both exact and fuzzy checks trigger UNCLEAR downgrade.
 
-| Confidence Range | Action |
-|---|---|
-| ≥ 0.70 | Accept stance label as-is |
-| 0.50 – 0.69 | Accept but flag as low_confidence |
-| 0.30 – 0.49 | Downgrade to UNCLEAR regardless of label |
-| < 0.30 | Discard extraction entirely |
+| Confidence Range | Meaning | Action |
+|---|---|---|
+| 0.90–1.00 | Explicit advocacy or direct policy endorsement | Accept as-is |
+| 0.70–0.89 | Strong framing lean (clear source imbalance, loaded language) | Accept as-is |
+| 0.50–0.69 | Detectable framing lean (subtle language, mild imbalance) | Accept, flag as low_confidence |
+| 0.30–0.49 | Weak signal (slight phrasing hints) | Downgrade to UNCLEAR |
+| < 0.30 | Negligible signal | Discard extraction entirely |
 
 ---
 
@@ -224,7 +236,7 @@ $$
 \mathcal{L}_{\text{MAP}}(\theta) = \sum_i \left[ y_i \cdot \log \sigma(\theta - b_i) + (1 - y_i) \cdot \log(1 - \sigma(\theta - b_i)) \right] - \frac{\theta^2}{2\sigma^2}
 $$
 
-The Gaussian prior ($\sigma = 1.0$) regularizes toward center when data is sparse, preventing extreme scores on 3–4 votes.
+The Gaussian prior ($\sigma = 1.0$) regularizes toward center when data is sparse, preventing extreme scores on 2–4 votes.
 
 ### Newton-Raphson Update
 
@@ -273,10 +285,12 @@ Lower SE means more confident estimate. High SE with few stances indicates insuf
 
 ### Minimum Signal Requirements
 
-- Minimum 3 valid stances (PRO or ANTI with confidence ≥ 0.50) required for scoring
+- Minimum 2 valid stances (PRO or ANTI with confidence ≥ 0.50) required for scoring
 - At least 2 unique propositions must be matched
 - All stances NEUTRAL/UNCLEAR → score is null (not zero)
-- Single-domain coverage only → score is null (insufficient diversity)
+- Single-domain coverage is permitted but flagged — the IRT standard error correctly reflects the higher uncertainty
+
+The lower minimum (2 vs. 3 in v1) is safe because the Gaussian prior regularizes sparse estimates toward center and the standard error correctly reflects high uncertainty with few data points. Single-domain articles (e.g., an article exclusively about immigration policy) are common in news and produce valid single-axis ideology signals. The domain cap (40% maximum per domain) still applies when multiple domains are present.
 
 ---
 
@@ -385,7 +399,7 @@ The colored bar shown on each article is called the **Strip**. Each cell represe
 | **Grounding Score** | A 0–100 measure of evidence coverage: the proportion of a document's segments that have actual evidence. High grounding means most claims were testable; low grounding means many claims lacked evidence. |
 | **Ideology Score (θ)** | A real-valued latent parameter estimated via MAP IRT. $\theta > 0$ = more liberal, $\theta < 0$ = more conservative, $\theta = 0$ = centrist. Normalized to $[-1, +1]$ via $\tanh(\theta/2)$ for display. |
 | **Integrity Score** | A 0–100 weighted score reflecting evidence alignment. Supported segments contribute positively, contradicted segments incur a 1.2× penalty, and mixed segments contribute lightly. The asymmetric weighting is deliberately conservative. |
-| **Keyword Boost** | A +0.02 cosine similarity bonus applied when a proposition's keywords overlap with segment text. Improves precision without collapsing recall. |
+| **Keyword Boost** | A +0.03 cosine similarity bonus applied when a proposition's keywords overlap with segment text. Improves precision without collapsing recall. |
 | **MAP Estimation** | Maximum A Posteriori estimation — finds the mode of the posterior distribution of θ given observed stances and a Gaussian prior. Computed via Newton-Raphson iteration. |
 | **Mixed** | A segment label meaning the retrieved evidence both supports and contradicts the claims — no clear consensus among sources. |
 | **Newton-Raphson** | An iterative numerical method used to find the MAP estimate of θ. Converges in ≤10 iterations with tolerance 0.001. |
@@ -415,11 +429,13 @@ The colored bar shown on each article is called the **Strip**. Each cell represe
 
 All results reflect alignment between extracted claims and retrieved evidence at analysis time. They do not constitute definitive judgments of truth. Evidence retrieval is not exhaustive; the corpus and web sources available at the time of analysis may not represent the totality of relevant information. NLI model outputs are probabilistic and subject to error.
 
-**Ideology scoring limitations:** Scores are computed only when explicit stance signals (PRO/ANTI) are present. Highly neutral, wire-style reporting produces fewer usable votes, more null scores, and wider standard errors. More interpretive or editorial outlets produce more scores with higher confidence. **A null score does not mean "centrist" — it means insufficient ideological signal was detected.**
+**Ideology scoring limitations:** Scores are computed only when stance signals (PRO/ANTI) are present. The v2 framing-aware extractor detects implicit editorial positioning through source selection, language, emphasis, and omission, significantly improving coverage over v1's explicit-only approach. Wire-style reporting with genuinely balanced framing will still produce fewer usable votes and wider standard errors. **A null score does not mean "centrist" — it means insufficient ideological signal was detected.**
 
-**Neutral-reporting bias:** Because NEUTRAL and UNCLEAR stances are excluded from the IRT computation, the system inherently favors scoring articles with clear editorial positioning. This is not a bug — it reflects genuine uncertainty — but users should be aware that coverage of wire-service and straight-news articles will have lower ideology scoring rates.
+**Framing detection trade-offs:** The framing-aware approach (v2) detects subtler ideological signals in news reporting, increasing scoring coverage. This also means that articles with mild, unintentional framing may receive non-null scores where v1 would have returned null. The confidence calibration and minimum-stance requirements mitigate this, but users should interpret scores with moderate confidence (0.50–0.69) as suggestive rather than definitive.
 
-**Domain cap:** No single domain contributes > 40% of stances to any document's θ computation. If exceeded, the lowest-confidence stances from the over-represented domain are deterministically dropped until the cap is met. This prevents high-salience issues (e.g., immigration, abortion) from dominating the ideology space while maintaining reproducibility.
+**Neutral-reporting coverage:** Because NEUTRAL and UNCLEAR stances are excluded from the IRT computation, articles with genuinely balanced framing produce fewer votes and more null scores. This is by design — the system correctly reflects uncertainty rather than forcing a centrist label — but users should expect lower ideology scoring rates for wire-service and straight-news content compared to editorial or advocacy content.
+
+**Domain cap:** No single domain contributes > 40% of stances to any document's θ computation when multiple domains are present. If exceeded, the lowest-confidence stances from the over-represented domain are deterministically dropped until the cap is met. Single-domain articles are scored without the cap — single-topic coverage is expected for many news articles and the IRT standard error correctly reflects the narrower evidence base. This prevents high-salience issues (e.g., immigration, abortion) from dominating the ideology space in multi-domain articles while maintaining reproducibility.
 
 **Proposition currency:** Six propositions are flagged for potential low discrimination or era-dependent polarity: military aid (#26), human rights sanctions (#29), free trade (#28), nuclear energy (#38), executive tariff authority (#41), and emergency declarations (#45). These are reviewed quarterly.
 
