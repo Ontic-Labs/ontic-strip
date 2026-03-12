@@ -1,0 +1,926 @@
+# ============================================================================
+# Ontic Strip — Prompt Workflow → UI Mapping
+# ============================================================================
+# Documents the full pipeline: each prompt, its model config, the DB fields
+# it writes, and exactly where those fields render in the frontend.
+#
+# Legend:
+#   translated  — Value is an enum/key rendered via i18n t() lookup
+#   raw         — AI-generated text displayed directly (English only today)
+#   numeric     — Number rendered as-is (score, percentage, count)
+#   internal    — Stored in DB but never shown to end users
+# ============================================================================
+
+meta:
+  updated: 2026-03-12
+  authors: [claude, shf]
+  pipeline_version: CFPO v2
+  prompt_count: 12
+  total_stages: 11
+
+# ============================================================================
+# Pipeline stage order
+# ============================================================================
+# Documents flow through these stages sequentially. Stages 8-11 run in
+# parallel after AGGREGATE completes.
+#
+#   NORMALIZE → INDEX → CLASSIFY → EXTRACT → EVIDENCE → VERACITY
+#       → AGGREGATE → [ SENTIMENT | SYNTHESIS | IDEOLOGY | ENRICH ]
+
+pipeline_flow:
+  - stage: NORMALIZE
+    status_path: normalizing → pending
+    function: normalizer
+    prompt: normalizer
+    max_attempts: 2
+
+  - stage: INDEX
+    status_path: pending → classifying
+    function: indexer
+    prompt: null  # deterministic chunking + embedding, no LLM prompt
+    max_attempts: 3
+
+  - stage: CLASSIFY
+    status_path: classifying → extracting
+    function: oracle-classifier
+    prompt: classifier
+    max_attempts: 3
+
+  - stage: EXTRACT
+    status_path: extracting → verifying
+    function: oracle-extractor
+    prompt: extractor
+    max_attempts: 3
+
+  - stage: EVIDENCE
+    status_path: verifying → verifying
+    function: oracle-evidence
+    prompt: null  # embedding similarity retrieval, no LLM prompt
+    max_attempts: 3
+
+  - stage: VERACITY
+    status_path: verifying → aggregated
+    function: oracle-veracity
+    prompts: [veracity-nli, veracity-web]
+    max_attempts: 5
+
+  - stage: AGGREGATE
+    status_path: aggregated → aggregated
+    function: aggregator
+    prompt: null  # deterministic scoring math, no LLM prompt
+    max_attempts: 3
+
+  # --- Parallel post-aggregate stages ---
+
+  - stage: SENTIMENT
+    status_path: aggregated (parallel)
+    function: oracle-sentiment
+    prompt: sentiment
+    max_attempts: 2
+
+  - stage: SYNTHESIS
+    status_path: aggregated (parallel)
+    function: oracle-synthesis
+    prompt: synthesis
+    max_attempts: 2
+
+  - stage: IDEOLOGY
+    status_path: aggregated (parallel)
+    function: oracle-ideology
+    prompts: [stance, ideology]
+    max_attempts: 2
+
+  - stage: ENRICH
+    status_path: aggregated (parallel)
+    function: event-enricher
+    prompt: event-classifier
+    max_attempts: 4
+
+# ============================================================================
+# Prompt definitions and UI mapping
+# ============================================================================
+
+prompts:
+
+  # --------------------------------------------------------------------------
+  # 1. NORMALIZER
+  # --------------------------------------------------------------------------
+  normalizer:
+    name: Content Normalizer
+    file: supabase/functions/_shared/prompts/normalizer.ts
+    model: google/gemini-2.5-flash-lite
+    temperature: 0.0
+    max_tokens: 8192
+    purpose: >
+      Strip web chrome (ads, nav, paywalls, images) from fetched HTML
+      and return clean article body as markdown.
+    input: Raw HTML/markdown from Firecrawl scrape
+    output_format: Plain markdown text
+    variables:
+      - PUBLISHER_EXCLUSIONS  # site-specific boilerplate patterns
+
+    db_fields:
+      - field: documents.normalized_content
+        type: text
+        description: Cleaned article markdown
+
+      - field: documents.word_count
+        type: integer
+        description: Token count of normalized content
+
+      - field: documents.fetch_status
+        value: normalized
+        description: Status flag
+
+    ui_rendering:
+      - field: documents.normalized_content
+        display: raw
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            component: Prose block under "Normalized Content" tab
+            line_ref: "~1155"
+            notes: Rendered as whitespace-pre-line text
+
+  # --------------------------------------------------------------------------
+  # 2. CLASSIFIER
+  # --------------------------------------------------------------------------
+  classifier:
+    name: Segment Classifier
+    file: supabase/functions/_shared/prompts/classifier.ts
+    model: perplexity/sonar
+    temperature: 0.1
+    max_tokens: 4000
+    purpose: >
+      Classify each article segment into one of four types and detect
+      rhetorical markers (sarcasm, hypothetical, quotation).
+    input: Segment text content (batches of 10)
+    output_format: JSON per segment
+
+    output_schema:
+      classification:
+        enum: [FACTUAL_CLAIM, OPINION_ANALYSIS, PROCEDURAL, OTHER]
+      rhetorical_flags:
+        is_sarcastic: boolean
+        is_hypothetical: boolean
+        is_rhetorical_question: boolean
+        is_quotation: boolean
+
+    label_mapping:
+      # Classification → initial segment label
+      FACTUAL_CLAIM: null         # label set later by VERACITY
+      OPINION_ANALYSIS: OPINION
+      PROCEDURAL: NEUTRAL
+      OTHER: OTHER
+
+    db_fields:
+      - field: segments.classification
+        type: enum
+        values: [FACTUAL_CLAIM, OPINION_ANALYSIS, PROCEDURAL, OTHER]
+
+      - field: segments.rhetorical_flags
+        type: jsonb
+
+      - field: segments.label
+        type: enum
+        description: Initial label (OPINION, NEUTRAL, OTHER, or null for factual claims)
+
+    ui_rendering:
+      - field: segments.classification
+        display: raw
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            component: Badge next to segment text
+            line_ref: "~964"
+            notes: >
+              Displayed as raw enum string (e.g., "FACTUAL_CLAIM").
+              NOT translated — could benefit from i18n in future.
+
+      - field: segments.label
+        display: translated
+        i18n_namespace: strip
+        i18n_key: "segmentLabels.{label}"
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            component: Colored strip cell + legend
+          - page: StoryDetail
+            file: src/pages/StoryDetail.tsx
+            component: StripBar per article
+          - page: ArticleCard
+            file: src/components/feed/ArticleCard.tsx
+            component: StripSummaryBar
+          - page: StripLegend
+            file: src/components/strip/StripLegend.tsx
+            component: Legend dialog with descriptions
+            i18n_keys:
+              - "segmentLabels.{label}"
+              - "segmentDescriptions.{label}"
+
+  # --------------------------------------------------------------------------
+  # 3. EXTRACTOR
+  # --------------------------------------------------------------------------
+  extractor:
+    name: Claim Extractor
+    file: supabase/functions/_shared/prompts/extractor.ts
+    model: perplexity/sonar
+    temperature: 0.1
+    max_tokens: 16000
+    purpose: >
+      Decompose FACTUAL_CLAIM segments into atomic, checkable claims with
+      SIRE metadata (Scope, Information, Retrieval, Exclusions).
+      Critical rule: attribution statements produce TWO claims
+      (ATTRIBUTION + CONTENT).
+    input: Segment text + article context
+    output_format: JSON array of claims per segment
+
+    output_schema:
+      claims:
+        - claim_text: string        # the atomic assertion
+          sire_scope:
+            entities: string[]
+            topics: string[]
+            temporal_scope: string
+          sire_information:
+            time_qualifier: string
+            geography: string
+            conditions: string
+            quantifiers: string
+          sire_retrieval:
+            search_queries: string[]
+            evidence_tiers: string[]
+            time_window: string
+            claim_type: enum [ATTRIBUTION, CONTENT, DIRECT]
+          sire_exclusions:
+            is_checkable: boolean
+            exclusion_reasons: string[]
+
+    db_fields:
+      - field: claims.claim_text
+        type: text
+        description: The extracted atomic claim
+
+      - field: claims.sire_scope
+        type: jsonb
+
+      - field: claims.sire_information
+        type: jsonb
+
+      - field: claims.sire_retrieval
+        type: jsonb
+        description: Includes claim_type (ATTRIBUTION | CONTENT | DIRECT)
+
+      - field: claims.sire_exclusions
+        type: jsonb
+
+      - field: claims.risk_level
+        type: enum
+        values: [LOW, MEDIUM, HIGH, CRITICAL]
+        description: Computed from keyword patterns, not prompt output
+
+    ui_rendering:
+      - field: claims.claim_text
+        display: raw
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            line_ref: "~997"
+            component: Claim text block under each segment
+            notes: >
+              AI-generated English text displayed directly.
+              For pt-BR articles, claim text is in Portuguese
+              (extracted from Portuguese source text).
+
+      - field: claims.risk_level
+        display: translated
+        i18n_namespace: strip
+        i18n_key: "riskLevelNames.{level}"
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            component: Risk badge on high-risk claims
+
+  # --------------------------------------------------------------------------
+  # 4. VERACITY (NLI + Web — two prompts)
+  # --------------------------------------------------------------------------
+  veracity-nli:
+    name: Corpus NLI Scoring
+    file: supabase/functions/_shared/prompts/veracity-nli.ts
+    model: perplexity/sonar
+    temperature: 0.1
+    max_tokens: 8000
+    purpose: >
+      Judge claim-evidence pairs from the internal corpus using Natural
+      Language Inference. Determines if corpus evidence entails,
+      contradicts, or is neutral to each claim.
+    input: Claim text + evidence text pair
+    output_format: JSON
+
+    output_schema:
+      nli_label: enum [ENTAILMENT, CONTRADICTION, NEUTRAL]
+      nli_confidence: number  # 0.0 to 1.0
+      reasoning: string
+
+  veracity-web:
+    name: Web Verification
+    file: supabase/functions/_shared/prompts/veracity-web.ts
+    model: perplexity/sonar
+    temperature: 0.1
+    max_tokens: 8000
+    purpose: >
+      Verify claims by searching credible external sources (AP, Reuters,
+      government sites). Returns NLI judgment plus source citations.
+    input: Claim text + search context
+    output_format: JSON
+
+    output_schema:
+      nli_label: enum [ENTAILMENT, CONTRADICTION, NEUTRAL]
+      nli_confidence: number
+      reasoning: string
+      sources:
+        - url: string
+          publisher: string
+          snippet: string
+          stance: enum [SUPPORTS, CONTRADICTS, NEUTRAL]
+
+  # Combined VERACITY stage DB fields and UI
+  veracity_stage:
+    db_fields:
+      - field: claims.veracity_label
+        type: enum
+        values: [SUPPORTED, CONTRADICTED, MIXED, UNKNOWN, NOT_CHECKABLE]
+        description: Aggregated verdict from NLI + web evidence
+
+      - field: claims.confidence_score
+        type: float
+        description: 0-1 confidence in the verdict
+
+      - field: claims.gap_reason
+        type: enum
+        values:
+          - NO_RELEVANT_EVIDENCE
+          - CIRCULAR_ONLY
+          - INSUFFICIENT_TIER_FOR_RISK
+          - PRIMARY_SOURCE_NOT_RETRIEVED
+          - NEUTRAL_ONLY
+          - WEAK_SUPPORT
+          - WEAK_CONTRADICTION
+          - WEAK_CONFLICT
+        description: Explains why verdict is UNKNOWN/NOT_CHECKABLE
+
+      - field: claims.conflict_basis
+        type: text
+        description: Prose explanation when verdict is MIXED
+
+      - field: evidence.nli_label
+        type: enum
+        values: [ENTAILMENT, CONTRADICTION, NEUTRAL]
+
+      - field: evidence.nli_confidence
+        type: float
+
+      - field: evidence.source_tier
+        type: enum
+        values: [T1, T2, T3, T4, T5]
+        description: Assigned by EVIDENCE stage, not prompt
+
+    ui_rendering:
+      - field: claims.veracity_label
+        display: translated
+        i18n_namespace: strip
+        i18n_key: "segmentLabels.{label}"
+        pages:
+          - page: DocumentDetail
+            component: VeracityBadge colored pill
+          - page: TrendingClaims
+            file: src/pages/TrendingClaims.tsx
+            component: Claim filter tabs + badges
+          - page: ClaimSearch
+            file: src/pages/ClaimSearch.tsx
+            component: Search result badges
+
+      - field: claims.confidence_score
+        display: numeric
+        format: percentage
+        pages:
+          - page: DocumentDetail
+            line_ref: "~1005"
+            component: Confidence percentage text
+
+      - field: claims.gap_reason
+        display: translated
+        i18n_namespace: strip
+        i18n_key: "gapReasonNames.{reason}"
+        pages:
+          - page: DocumentDetail
+            component: Gap reason tooltip on UNKNOWN claims
+
+      - field: claims.conflict_basis
+        display: raw
+        pages:
+          - page: DocumentDetail
+            line_ref: "~1044"
+            component: Conflict explanation text
+            notes: AI-generated English prose, not translated
+
+      - field: evidence.nli_label
+        display: raw
+        pages:
+          - page: DocumentDetail
+            line_ref: "~1094"
+            component: Evidence card NLI badge
+            notes: >
+              Shows raw enum (ENTAILMENT, CONTRADICTION, NEUTRAL).
+              Styled via CSS class but text is not translated.
+
+      - field: evidence.source_tier
+        display: translated
+        i18n_namespace: strip
+        i18n_key: "tierNames.{tier}"
+        pages:
+          - page: DocumentDetail
+            component: Tier badge on evidence cards
+            i18n_keys:
+              - "tierNames.T1"  # Primary Source
+              - "tierNames.T2"  # Wire Service
+              - "tierNames.T3"  # Reference
+              - "tierNames.T4"  # Established News Org
+              - "tierNames.T5"  # (unnamed)
+
+      - field: evidence.evidence_text
+        display: raw
+        pages:
+          - page: DocumentDetail
+            line_ref: "~1117"
+            component: Evidence snippet text
+            notes: Corpus text or web snippet, displayed as-is
+
+  # --------------------------------------------------------------------------
+  # 5. SENTIMENT
+  # --------------------------------------------------------------------------
+  sentiment:
+    name: Segment Sentiment Scoring
+    file: supabase/functions/_shared/prompts/sentiment.ts
+    model: google/gemini-2.5-flash-lite
+    temperature: 0.0
+    max_tokens: 4000
+    purpose: >
+      Score emotional tone of each segment. Factual reporting about
+      negative events is scored neutral. Quotes carry the speaker's
+      sentiment, not the reporter's.
+    input: Array of segment texts
+    output_format: JSON array of sentiment objects
+
+    output_schema:
+      - compound: number   # -1.0 to +1.0
+        pos: number        # 0.0 to 1.0
+        neg: number        # 0.0 to 1.0
+        neu: number        # 0.0 to 1.0
+
+    db_fields:
+      # Segment level
+      - field: segments.sentiment_compound
+        type: float
+      - field: segments.sentiment_pos
+        type: float
+      - field: segments.sentiment_neg
+        type: float
+      - field: segments.sentiment_neu
+        type: float
+
+      # Document level (averaged from segments)
+      - field: documents.sentiment_compound
+        type: float
+      - field: documents.sentiment_pos
+        type: float
+      - field: documents.sentiment_neg
+        type: float
+      - field: documents.sentiment_neu
+        type: float
+
+    ui_rendering:
+      - field: documents.sentiment_*
+        display: numeric + translated labels
+        component: SentimentBadge
+        file: src/components/strip/SentimentBadge.tsx
+        i18n_namespace: strip
+        i18n_keys:
+          - "sentiment.label"       # "Sentiment"
+          - "sentiment.positive"    # "Pos:"
+          - "sentiment.negative"    # "Neg:"
+          - "sentiment.neutral"     # "Neu:"
+        pages:
+          - DocumentDetail
+          - ArticleCard (via score row)
+
+  # --------------------------------------------------------------------------
+  # 6. SYNTHESIS
+  # --------------------------------------------------------------------------
+  synthesis:
+    name: Narrative Synthesis
+    file: supabase/functions/_shared/prompts/synthesis.ts
+    model: perplexity/sonar
+    temperature: 0.3
+    max_tokens: 500
+    purpose: >
+      Write an editorial-style analysis (3-5 sentences) highlighting
+      where evidence holds up, where it breaks down, and patterns in
+      story construction. Voice: "like a seasoned editor's marginal notes."
+    input: >
+      Title, scores (grounding, integrity, sentiment), claim verdict
+      distribution, strip label distribution
+    output_format: Plain text prose (no JSON, no markdown)
+
+    db_fields:
+      - field: documents.synthesis_text
+        type: text
+        description: 3-5 sentence editorial analysis
+
+      - field: documents.synthesis_sources
+        type: jsonb
+        description: Array of citation URLs
+
+    ui_rendering:
+      - field: documents.synthesis_text
+        display: raw
+        pages:
+          - page: DocumentDetail
+            file: src/pages/DocumentDetail.tsx
+            line_ref: "~779"
+            component: Editorial Insight card
+            i18n_label: "pages:documentDetail.editorialInsight"
+            notes: >
+              AI-generated English prose displayed directly.
+              This is a Tier 1 prompt for i18n — future pt-BR
+              articles will generate Portuguese synthesis text.
+
+  # --------------------------------------------------------------------------
+  # 7. IDEOLOGY (stance + ideology prompts)
+  # --------------------------------------------------------------------------
+  stance:
+    name: Stance Extractor
+    file: supabase/functions/_shared/prompts/stance.ts
+    model: google/gemini-2.5-flash
+    temperature: 0.1
+    max_tokens: 2000
+    version: 2
+    purpose: >
+      Determine whether text segments support (PRO), oppose (ANTI),
+      are balanced toward (NEUTRAL), or provide insufficient signal
+      (UNCLEAR) about given policy propositions. Detects framing
+      signals: source selection imbalance, loaded language, emphasis,
+      omission, attribution framing.
+    input: Segment text + proposition text + article context (title + lead)
+    output_format: JSON
+
+    output_schema:
+      proposition_id: uuid
+      stance: enum [PRO, ANTI, NEUTRAL, UNCLEAR]
+      confidence: number  # 0.0 to 1.0
+      quoted_text: string
+
+    confidence_calibration:
+      0.90-1.00: Explicit advocacy/endorsement
+      0.70-0.89: Strong framing lean
+      0.50-0.69: Detectable lean
+      0.30-0.49: Weak signal
+      "<0.30": Classify as UNCLEAR
+
+    notes: >
+      Stance votes feed into the IRT (Item Response Theory) model
+      which computes the final ideology scores. The stance prompt
+      itself does not produce ideology scores.
+
+  ideology:
+    name: Ideology Classifier
+    file: supabase/functions/_shared/prompts/ideology.ts
+    model: google/gemini-2.5-flash  # inferred from stance config
+    temperature: 0.1
+    max_tokens: 2000
+    purpose: >
+      Classify article's ideological positioning along two axes.
+      Scores the article's FRAMING and editorial positioning, not
+      the topic itself.
+    input: Article segments + matched propositions
+    output_format: JSON with 2D scores
+
+    output_schema:
+      economic: number   # -10 (communism) to +10 (laissez-faire)
+      social: number     # -10 (progressive) to +10 (conservative)
+      confidence: number # 0.0 to 1.0
+      reasoning: string
+
+    db_fields:
+      - field: documents.ideology_scores
+        type: jsonb
+        description: >
+          JSON object with: economic, social, confidence, reasoning,
+          method, theta_raw, se, n_stances, n_propositions, scoring_version
+
+    ui_rendering:
+      - field: documents.ideology_scores.economic
+        display: numeric + translated axis labels
+        component: IdeologyBadge
+        file: src/components/strip/IdeologyBadge.tsx
+        i18n_namespace: strip
+        i18n_keys:
+          - "ideology.label"                    # "Ideology"
+          - "ideology.economic"                 # "Economic"
+          - "ideology.social"                   # "Social"
+          - "ideology.method"                   # "Method"
+          - "ideology.stances"                  # "Stances"
+          - "ideology.confidence"               # "Confidence"
+          - "ideology.axisLabels.leftLean"       # "Left Lean"
+          - "ideology.axisLabels.rightLean"      # "Right Lean"
+          - "ideology.axisLabels.progressiveLean"
+          - "ideology.axisLabels.conservativeLean"
+          - "ideology.insufficientSignalTooltip"
+          - "ideology.noData"
+        pages:
+          - DocumentDetail
+          - PublisherDetail (scatter plot)
+          - ComparePublishers (comparison chart)
+
+      - field: documents.ideology_scores.reasoning
+        display: raw
+        pages:
+          - page: IdeologyBadge tooltip
+            notes: AI-generated explanation, not translated
+
+      - field: documents.ideology_scores.method
+        display: raw
+        pages:
+          - page: IdeologyBadge tooltip
+            notes: Shows "IRT" or similar — not translated
+
+  # --------------------------------------------------------------------------
+  # 8. FEED DESCRIPTION
+  # --------------------------------------------------------------------------
+  feed-description:
+    name: Feed Description Generator
+    file: supabase/functions/_shared/prompts/feed-description.ts
+    model: google/gemini-2.5-flash-lite
+    temperature: 0.0
+    max_tokens: 256
+    purpose: >
+      Generate a concise, neutral one-sentence description of a news
+      publisher (max 120 chars). No promotional language.
+    input: Publisher name + sample article titles
+    output_format: Plain text, single sentence
+
+    db_fields:
+      - field: feeds.description
+        type: text
+        description: One-sentence publisher description
+
+    ui_rendering:
+      - field: feeds.description
+        display: raw
+        pages:
+          - page: ArticleCard
+            file: src/components/feed/ArticleCard.tsx
+            line_ref: "~72"
+            component: Italic feed description line
+          - page: PublisherDetail
+            file: src/pages/PublisherDetail.tsx
+            component: Publisher header description
+
+  # --------------------------------------------------------------------------
+  # 9. STORY CLUSTERER
+  # --------------------------------------------------------------------------
+  story-clusterer:
+    name: Story Cluster Labeler
+    file: supabase/functions/_shared/prompts/story-clusterer.ts
+    model: google/gemini-2.5-flash-lite
+    temperature: 0.0
+    max_tokens: 4000
+    purpose: >
+      Generate concise headlines (max 10 words) and one-sentence
+      summaries for article clusters sharing the same story.
+    input: Cluster of article titles + summaries
+    output_format: Tool function call with structured clusters
+
+    output_schema:
+      clusters:
+        - index: number
+          title: string    # max 10 words
+          summary: string  # one sentence
+
+    db_fields:
+      - field: story_clusters.title
+        type: text
+      - field: story_clusters.summary
+        type: text
+
+    ui_rendering:
+      - field: story_clusters.title
+        display: raw
+        pages:
+          - page: Stories
+            file: src/pages/Stories.tsx
+            component: Story card headline
+          - page: StoryDetail
+            file: src/pages/StoryDetail.tsx
+            component: Page title
+          - page: Landing
+            file: src/pages/Landing.tsx
+            component: Top stories this week cards
+
+      - field: story_clusters.summary
+        display: raw
+        pages:
+          - page: Stories
+            component: Story card description
+          - page: StoryDetail
+            component: Story summary below title
+
+  # --------------------------------------------------------------------------
+  # 10. EVENT CLASSIFIER
+  # --------------------------------------------------------------------------
+  event-classifier:
+    name: Event Type Classifier
+    file: supabase/functions/_shared/prompts/event-classifier.ts
+    model: google/gemini-2.5-flash-lite
+    temperature: 0.0
+    max_tokens: 256
+    purpose: >
+      Classify articles into one of 20 canonical event types for
+      cross-publisher story matching.
+    input: Document title + extracted entities
+    output_format: JSON
+
+    output_schema:
+      event_type:
+        enum:
+          - MILITARY_ACTION
+          - ARMED_CONFLICT
+          - TERRORIST_ATTACK
+          - ELECTION
+          - LEGISLATION
+          - INDICTMENT
+          - DIPLOMACY
+          - ECONOMIC_EVENT
+          - NATURAL_DISASTER
+          - PUBLIC_HEALTH
+          - POLICY_CHANGE
+          - PROTEST
+          - APPOINTMENT
+          - INVESTIGATION
+          - INFRASTRUCTURE
+          - SCIENCE_TECH
+          - ENVIRONMENTAL
+          - SOCIAL_CULTURAL
+          - ANALYSIS
+          - OTHER
+      confidence: number
+
+    db_fields:
+      - field: documents.enriched_event_type
+        type: text
+
+    ui_rendering:
+      - field: documents.enriched_event_type
+        display: translated
+        i18n_namespace: ui
+        i18n_key: "eventTypes.{type}"
+        pages:
+          - page: Stories
+            file: src/pages/Stories.tsx
+            component: Event type filter tabs
+            notes: >
+              Event types rendered via t('eventTypes.{type}').
+              Only a subset have translations — missing types
+              fall back to the raw enum string.
+
+# ============================================================================
+# Aggregate scoring (no prompt — deterministic math)
+# ============================================================================
+aggregate:
+  name: Score Aggregation
+  function: aggregator
+  prompt: null
+  purpose: >
+    Computes document-level scores from claim verdicts and segment labels.
+    Pure math — no LLM involved.
+
+  db_fields:
+    - field: documents.strip
+      type: jsonb
+      description: Array of {label, segment_id} — the colored strip
+
+    - field: documents.grounding_score
+      type: float
+      description: 0-100, proportion of claims backed by evidence
+
+    - field: documents.integrity_score
+      type: float
+      description: 0-100, weighted evidence alignment across segments
+
+    - field: documents.factuality_score
+      type: float
+      description: Derived from grounding + integrity
+
+    - field: documents.sourcing_quality
+      type: float
+      description: Quality/tier distribution of evidence
+
+    - field: documents.one_sidedness
+      type: float
+      description: Editorial bias from opinion ratio + sentiment
+
+  ui_rendering:
+    - field: documents.strip
+      display: translated labels + colored cells
+      component: StripBar / StripSummaryBar
+      files:
+        - src/components/strip/StripBar.tsx
+        - src/components/strip/StripSummaryBar.tsx
+      i18n_namespace: strip
+      i18n_key: "segmentLabels.{label}"
+      pages: [DocumentDetail, StoryDetail, ArticleCard, PublisherDetail]
+
+    - field: documents.grounding_score
+      display: numeric + translated label
+      component: ScoreBadge / SparkScore
+      files:
+        - src/components/strip/ScoreBadge.tsx
+        - src/components/strip/SparkScore.tsx
+      i18n_namespace: strip
+      i18n_keys:
+        - "scoreLabels.grounding"
+        - "scoreDescriptions.grounding"
+      pages: [DocumentDetail, ArticleCard, StoryDetail, Leaderboard, PublisherDetail]
+
+    - field: documents.integrity_score
+      display: numeric + translated label
+      component: ScoreBadge / SparkScore
+      i18n_keys:
+        - "scoreLabels.integrity"
+        - "scoreDescriptions.integrity"
+      pages: [DocumentDetail, ArticleCard, StoryDetail, Leaderboard, PublisherDetail]
+
+    - field: documents.factuality_score
+      display: numeric + translated label
+      component: ScoreBadge
+      i18n_key: "scoreLabels.factuality"
+      pages: [DocumentDetail, Leaderboard]
+
+    - field: documents.sourcing_quality
+      display: numeric + translated label
+      component: ScoreBadge
+      i18n_key: "scoreLabels.sourcingQuality"
+      pages: [DocumentDetail]
+
+    - field: documents.one_sidedness
+      display: numeric + translated label
+      component: ScoreBadge
+      i18n_key: "scoreLabels.editorialization"
+      pages: [DocumentDetail]
+
+# ============================================================================
+# Translation coverage summary
+# ============================================================================
+i18n_coverage:
+  fully_translated:
+    description: >
+      Enum values and UI labels rendered via i18n t() calls.
+      Translations exist in both en and pt-BR locale files.
+    fields:
+      - segments.label              # segmentLabels.*
+      - claims.veracity_label       # segmentLabels.*
+      - claims.risk_level           # riskLevelNames.*
+      - claims.gap_reason           # gapReasonNames.*
+      - evidence.source_tier        # tierNames.*
+      - score labels                # scoreLabels.* / scoreDescriptions.*
+      - sentiment labels            # sentiment.*
+      - ideology axis labels        # ideology.axisLabels.*
+      - event types                 # ui:eventTypes.*
+      - bias direction              # bias.leftLeaning / centerBalanced / rightLeaning
+
+  raw_ai_text:
+    description: >
+      AI-generated text displayed directly without translation.
+      For en articles this is English; for pt-BR articles the prompt
+      generates Portuguese (once i18n-prompts plan is implemented).
+    fields:
+      - claims.claim_text           # extracted from article language
+      - claims.conflict_basis       # AI explanation of evidence conflicts
+      - evidence.evidence_text      # corpus snippet or web excerpt
+      - evidence.nli_label          # ENTAILMENT/CONTRADICTION/NEUTRAL (raw enum)
+      - segments.classification     # FACTUAL_CLAIM/OPINION_ANALYSIS/etc. (raw enum)
+      - documents.synthesis_text    # editorial insight prose
+      - documents.normalized_content  # cleaned article text
+      - documents.ideology_scores.reasoning
+      - documents.ideology_scores.method
+      - story_clusters.title        # AI-generated headline
+      - story_clusters.summary      # AI-generated summary
+      - feeds.description           # AI-generated publisher description
+
+  not_yet_translated:
+    description: >
+      Enum values shown in UI that could benefit from i18n but
+      currently render as raw English strings.
+    fields:
+      - evidence.nli_label          # ENTAILMENT → "Supported by evidence"
+      - segments.classification     # FACTUAL_CLAIM → "Factual Claim"
