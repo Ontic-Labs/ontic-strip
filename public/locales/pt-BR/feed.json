@@ -30,5 +30,6 @@
   "noArticlesFilteredHint": "Tente ajustar sua busca ou filtro.",
   "noArticlesYetHint": "Adicione feeds RSS no painel de administração para começar a ingerir artigos.",
   "publisherSummary": "Resumo do Editor",
-  "articles": "Artigos ({{count}})"
+  "articles": "Artigos ({{count}})",
+  "noBaselineData": "Sem dados de baseline"
 }

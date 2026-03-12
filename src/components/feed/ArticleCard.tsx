@@ -78,6 +78,15 @@ export function ArticleCard({ document: doc }: ArticleCardProps) {
             <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-relaxed">
               {doc.raw_content
                 .replace(/<[^>]+>/g, " ")
+                .replace(/&apos;/g, "'")
+                .replace(/&quot;/g, '"')
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+                .replace(/&#x([0-9a-fA-F]+);/g, (_, n) =>
+                  String.fromCharCode(Number.parseInt(n, 16)),
+                )
+                .replace(/&amp;/g, "&")
                 .replace(/\s+/g, " ")
                 .trim()
                 .slice(0, 200)}

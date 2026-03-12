@@ -1166,6 +1166,15 @@ export default function DocumentDetail() {
                   <p className="text-sm sm:text-base leading-relaxed text-muted-foreground whitespace-pre-line">
                     {doc.raw_content
                       .replace(/<[^>]+>/g, " ")
+                      .replace(/&apos;/g, "'")
+                      .replace(/&quot;/g, '"')
+                      .replace(/&lt;/g, "<")
+                      .replace(/&gt;/g, ">")
+                      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+                      .replace(/&#x([0-9a-fA-F]+);/g, (_, n) =>
+                        String.fromCharCode(Number.parseInt(n, 16)),
+                      )
+                      .replace(/&amp;/g, "&")
                       .replace(/\s+/g, " ")
                       .trim()}
                   </p>

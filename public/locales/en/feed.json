@@ -30,5 +30,6 @@
   "noArticlesFilteredHint": "Try adjusting your search or filter.",
   "noArticlesYetHint": "Add RSS feeds in the admin panel to start ingesting articles.",
   "publisherSummary": "Publisher Summary",
-  "articles": "Articles ({{count}})"
+  "articles": "Articles ({{count}})",
+  "noBaselineData": "No baseline data"
 }

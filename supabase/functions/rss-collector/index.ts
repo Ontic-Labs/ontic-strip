@@ -95,7 +95,29 @@ async function collectFeed(
     return { collected: 0, errors: [`${feed.publisher_name}: HTTP ${rssResp.status}`] };
   }
 
-  const xml = await rssResp.text();
+  // Detect charset from Content-Type header or XML declaration.
+  // Many non-English feeds (e.g. Folha de S.Paulo) serve ISO-8859-1.
+  // Using .text() alone assumes UTF-8, corrupting accented characters.
+  const contentType = rssResp.headers.get("content-type") ?? "";
+  const ctCharset = contentType.match(/charset=([^\s;]+)/i)?.[1];
+  const rawBytes = new Uint8Array(await rssResp.arrayBuffer());
+
+  // Peek at the XML prolog for encoding="..." (e.g. <?xml version="1.0" encoding="ISO-8859-1"?>)
+  const head = new TextDecoder("ascii").decode(rawBytes.subarray(0, 200));
+  const xmlCharset = head.match(/<\?xml[^?]*encoding=["']([^"']+)["']/i)?.[1];
+
+  const charset = ctCharset || xmlCharset || "utf-8";
+  let xml: string;
+  try {
+    xml = new TextDecoder(charset).decode(rawBytes);
+  } catch {
+    // If the declared charset is unsupported, fall back to latin1 then utf-8
+    try {
+      xml = new TextDecoder("iso-8859-1").decode(rawBytes);
+    } catch {
+      xml = new TextDecoder("utf-8").decode(rawBytes);
+    }
+  }
   const rssItems = parseRSSItems(xml).slice(0, maxItems);
 
   for (const item of rssItems) {
