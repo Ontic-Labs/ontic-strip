@@ -27,6 +27,16 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-strip-contradicted/20 text-strip-contradicted",
 };
 
+const STAGE_TEXT_COLORS: Record<string, string> = {
+  aggregated: "text-strip-supported",
+  normalizing: "text-strip-opinion",
+  pending: "text-strip-unknown",
+  classifying: "text-primary",
+  extracting: "text-primary",
+  verifying: "text-strip-mixed",
+  failed: "text-strip-contradicted",
+};
+
 const HEALTH_STYLES = {
   healthy: "bg-strip-supported/10 border-strip-supported/30 text-strip-supported",
   degraded: "bg-strip-mixed/10 border-strip-mixed/30 text-strip-mixed",
@@ -78,6 +88,40 @@ export default function JobHealth() {
         .limit(20);
       if (error) throw error;
       return data;
+    },
+    refetchInterval: 30_000,
+  });
+
+  // Feed stats: feeds + per-feed doc counts (server-side GROUP BY)
+  const { data: feedStats, isLoading: loadingFeeds } = useQuery({
+    queryKey: ["job-health-feeds"],
+    queryFn: async () => {
+      const [feedsRes, countsRes] = await Promise.all([
+        supabase
+          .from("feeds")
+          .select("id, publisher_name, locale, is_active, last_polled_at")
+          .order("publisher_name"),
+        supabase.rpc("feed_doc_status_counts"),
+      ]);
+      if (feedsRes.error) throw feedsRes.error;
+      if (countsRes.error) throw countsRes.error;
+
+      // Build lookup: feed_id → { status → count }
+      const counts: Record<string, Record<string, number>> = {};
+      for (const row of countsRes.data as Array<{
+        feed_id: string;
+        status: string;
+        cnt: number;
+      }>) {
+        if (!counts[row.feed_id]) counts[row.feed_id] = {};
+        counts[row.feed_id][row.status] = row.cnt;
+      }
+
+      return feedsRes.data.map((f) => ({
+        ...f,
+        docCounts: counts[f.id] ?? {},
+        docTotal: Object.values(counts[f.id] ?? {}).reduce((a: number, b: number) => a + b, 0),
+      }));
     },
     refetchInterval: 30_000,
   });
@@ -239,6 +283,104 @@ export default function JobHealth() {
                       </div>
                     ))}
                 </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Feed Status by Locale */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-mono">{t("health.feedStatus")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingFeeds ? (
+              <Skeleton className="h-32" />
+            ) : !feedStats || feedStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                {t("health.noFeeds")}
+              </p>
+            ) : (
+              <>
+                {[...new Set(feedStats.map((f) => f.locale as string))].sort().map((locale) => {
+                  const feeds = feedStats.filter((f) => f.locale === locale);
+                  if (feeds.length === 0) return null;
+                  const localeTotal = feeds.reduce((s, f) => s + f.docTotal, 0);
+                  return (
+                    <div key={locale} className="mb-5 last:mb-0">
+                      <h3 className="text-xs font-mono font-bold uppercase tracking-wide mb-2 text-muted-foreground">
+                        {locale} — {feeds.length} {t("health.feedCount", { count: feeds.length })} ·{" "}
+                        {localeTotal} {t("health.docs")}
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs font-mono">
+                          <thead>
+                            <tr className="border-b text-muted-foreground">
+                              <th className="text-left py-1.5 px-2">{t("health.feedPublisher")}</th>
+                              <th className="text-center py-1.5 px-1 w-12">
+                                {t("health.feedActive")}
+                              </th>
+                              <th className="text-right py-1.5 px-2">{t("health.docs")}</th>
+                              {STAGE_ORDER.map((s) => (
+                                <th key={s} className="text-right py-1.5 px-1 hidden sm:table-cell">
+                                  <span className="text-[9px] uppercase">{s.slice(0, 4)}</span>
+                                </th>
+                              ))}
+                              <th className="text-right py-1.5 px-2">
+                                {t("health.feedLastPolled")}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {feeds
+                              .sort((a, b) => b.docTotal - a.docTotal)
+                              .map((f) => (
+                                <tr key={f.id} className="border-b border-border/50">
+                                  <td className="py-1.5 px-2 font-medium truncate max-w-[160px]">
+                                    {f.publisher_name}
+                                  </td>
+                                  <td className="text-center py-1.5 px-1">
+                                    <span
+                                      className={cn(
+                                        "inline-block w-2 h-2 rounded-full",
+                                        f.is_active
+                                          ? "bg-strip-supported"
+                                          : "bg-muted-foreground/40",
+                                      )}
+                                      title={
+                                        f.is_active ? t("health.active") : t("health.inactive")
+                                      }
+                                    />
+                                  </td>
+                                  <td className="text-right py-1.5 px-2 font-bold">
+                                    {f.docTotal || "—"}
+                                  </td>
+                                  {STAGE_ORDER.map((s) => (
+                                    <td
+                                      key={s}
+                                      className={cn(
+                                        "text-right py-1.5 px-1 hidden sm:table-cell",
+                                        f.docCounts[s]
+                                          ? (STAGE_TEXT_COLORS[s] ?? "text-muted-foreground")
+                                          : "text-muted-foreground/30",
+                                      )}
+                                    >
+                                      {f.docCounts[s] || "·"}
+                                    </td>
+                                  ))}
+                                  <td className="text-right py-1.5 px-2 text-muted-foreground text-[10px]">
+                                    {f.last_polled_at
+                                      ? new Date(f.last_polled_at).toLocaleDateString()
+                                      : t("health.never")}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
               </>
             )}
           </CardContent>

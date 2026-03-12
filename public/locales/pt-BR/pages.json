@@ -176,7 +176,17 @@
       "pausedCount": "{{count}} pausados",
       "noActivity": "Sem atividade recente",
       "allClear": "Todos os sistemas operacionais"
-    }
+    },
+    "feedStatus": "Status dos Feeds por Idioma",
+    "noFeeds": "Nenhum feed encontrado",
+    "feedCount": "feeds",
+    "docs": "docs",
+    "feedPublisher": "Publicador",
+    "feedActive": "On",
+    "feedLastPolled": "Última Coleta",
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "never": "nunca"
   },
   "documentDetail": {
     "loading": "Carregando...",

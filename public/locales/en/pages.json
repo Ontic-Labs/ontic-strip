@@ -176,7 +176,17 @@
       "pausedCount": "{{count}} paused",
       "noActivity": "No recent activity",
       "allClear": "All systems operational"
-    }
+    },
+    "feedStatus": "Feed Status by Locale",
+    "noFeeds": "No feeds found",
+    "feedCount": "feeds",
+    "docs": "docs",
+    "feedPublisher": "Publisher",
+    "feedActive": "On",
+    "feedLastPolled": "Last Polled",
+    "active": "Active",
+    "inactive": "Inactive",
+    "never": "never"
   },
   "documentDetail": {
     "loading": "Loading...",
