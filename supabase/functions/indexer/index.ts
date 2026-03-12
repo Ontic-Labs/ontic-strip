@@ -185,6 +185,7 @@ const OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings";
 const EMBEDDING_MODEL = "openai/text-embedding-3-large";
 const EMBEDDING_DIMENSIONS = 1536; // Matryoshka truncation — fits existing vector(1536) columns
 const EMBEDDING_BATCH_SIZE = 20;
+const EMBEDDING_TIMEOUT_MS = 30_000;
 
 async function getEmbeddings(texts: string[], apiKey: string): Promise<(number[] | null)[]> {
   const results: (number[] | null)[] = new Array(texts.length).fill(null);
@@ -192,27 +193,32 @@ async function getEmbeddings(texts: string[], apiKey: string): Promise<(number[]
   for (let i = 0; i < texts.length; i += EMBEDDING_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBEDDING_BATCH_SIZE);
 
+    let resp: Response;
     try {
-      const resp = await fetch(OPENROUTER_EMBEDDINGS_URL, {
+      resp = await fetch(OPENROUTER_EMBEDDINGS_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ model: EMBEDDING_MODEL, input: batch, dimensions: EMBEDDING_DIMENSIONS }),
+        signal: AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
       });
-
-      if (!resp.ok) {
-        console.error(`Embedding API error (batch ${i}): ${resp.status} ${await resp.text()}`);
-        continue;
-      }
-
-      const data = await resp.json();
-      for (const item of (data.data || [])) {
-        results[i + item.index] = item.embedding;
-      }
     } catch (e) {
-      console.error(`Embedding batch ${i} failed:`, e);
+      if (e instanceof DOMException && e.name === "TimeoutError") {
+        throw new Error(`Embedding API timed out after ${EMBEDDING_TIMEOUT_MS}ms (batch ${i})`);
+      }
+      throw e;
+    }
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Embedding API error (batch ${i}): ${resp.status} ${errText.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+    for (const item of (data.data || [])) {
+      results[i + item.index] = item.embedding;
     }
   }
 
@@ -240,6 +246,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -247,155 +259,102 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     let documentId: string | null = null;
-    let batchSize = 10;
     try {
       const body = await req.json();
       documentId = body.document_id || null;
-      batchSize = body.batch_size || 10;
     } catch {
-      // No body — process all pending
+      // No body
     }
 
-    // Find documents ready for indexing
-    let query = supabase
+    if (!documentId) {
+      return json({ error: "document_id is required" }, 400);
+    }
+
+    // Idempotency: only process if still in pending state
+    const { data: doc, error: fetchErr } = await supabase
       .from("documents")
       .select("id, feed_id, url, title, published_at, normalized_content, feeds(publisher_name, source_category)")
-      .in("fetch_status", ["normalized", "fetched"])
+      .eq("id", documentId)
       .eq("pipeline_status", "pending")
-      .not("normalized_content", "is", null)
-      .order("created_at", { ascending: true })
-      .limit(batchSize);
+      .maybeSingle();
 
-    if (documentId) {
-      query = supabase
-        .from("documents")
-        .select("id, feed_id, url, title, published_at, normalized_content, feeds(publisher_name, source_category)")
-        .eq("id", documentId)
-        .limit(1);
+    if (fetchErr) throw fetchErr;
+    if (!doc) {
+      return json({ skipped: true, message: "Document not in pending state (already processed or missing)" });
     }
 
-    const { data: docs, error: docsErr } = await query;
-    if (docsErr) throw docsErr;
-    if (!docs || docs.length === 0) {
-      return new Response(
-        JSON.stringify({ indexed: 0, message: "No documents to index" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!doc.normalized_content) {
+      return json({ error: "Document has no normalized content" }, 422);
     }
 
-    let totalSegments = 0;
-    let totalEmbedded = 0;
-    const errors: string[] = [];
-    const isWorkerDispatch = !!documentId && docs.length === 1;
+    // Transition to indexing with guard
+    await supabase
+      .from("documents")
+      .update({ pipeline_status: "indexing" })
+      .eq("id", doc.id)
+      .eq("pipeline_status", "pending");
 
-    for (const doc of docs) {
-      try {
-        if (!doc.normalized_content) continue;
+    const feed = doc.feeds as any;
+    const frontMatter = generateFrontMatter(doc, feed);
 
-        await supabase
-          .from("documents")
-          .update({ pipeline_status: "indexing" })
-          .eq("id", doc.id);
+    // Store front matter
+    await supabase
+      .from("documents")
+      .update({ corpus_front_matter: frontMatter } as any)
+      .eq("id", doc.id);
 
-        const feed = doc.feeds as any;
-
-        // Generate front matter
-        const frontMatter = generateFrontMatter(doc, feed);
-
-        // Store front matter on document
-        await supabase
-          .from("documents")
-          .update({ corpus_front_matter: frontMatter } as any)
-          .eq("id", doc.id);
-
-        // Chunk with watermarks
-        const chunks = chunkDocument(doc.normalized_content, doc.id);
-        if (chunks.length === 0) {
-          const msg = `Doc ${doc.id}: no chunks produced`;
-          if (isWorkerDispatch) {
-            return new Response(
-              JSON.stringify({ error: msg }),
-              { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-          const { error: updErr } = await supabase
-            .from("documents")
-            .update({ pipeline_status: "failed" })
-            .eq("id", doc.id);
-          if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
-          errors.push(msg);
-          continue;
-        }
-
-        // Build embedding inputs with front matter context prepended
-        const embeddingInputs = chunks.map((c) => buildEmbeddingInput(c, frontMatter));
-        const embeddings = await getEmbeddings(embeddingInputs, openrouterKey);
-
-        // Build segment rows — text_content stores watermarked text
-        const segmentRows = chunks.map((chunk, idx) => ({
-          document_id: doc.id,
-          text_content: chunk.watermarked_text,
-          position_index: chunk.position,
-          token_count: chunk.tokenCount,
-          embedding: embeddings[idx] ? `[${embeddings[idx]!.join(",")}]` : null,
-          classification: null,
-          label: null,
-          rhetorical_flags: [],
-        }));
-
-        // Delete existing segments for re-index support
-        await supabase.from("segments").delete().eq("document_id", doc.id);
-
-        // Insert in batches
-        for (let i = 0; i < segmentRows.length; i += 50) {
-          const batch = segmentRows.slice(i, i + 50);
-          const { error: insertErr } = await supabase.from("segments").insert(batch);
-          if (insertErr) {
-            errors.push(`Doc ${doc.id} segments batch ${i}: ${insertErr.message}`);
-          }
-        }
-
-        totalSegments += chunks.length;
-        totalEmbedded += embeddings.filter(Boolean).length;
-
-        await supabase
-          .from("documents")
-          .update({ pipeline_status: "classifying" })
-          .eq("id", doc.id);
-      } catch (e) {
-        const msg = `Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`;
-        if (isWorkerDispatch) {
-          return new Response(
-            JSON.stringify({ error: msg }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        errors.push(msg);
-        const { error: updErr } = await supabase
-          .from("documents")
-          .update({ pipeline_status: "failed" })
-          .eq("id", doc.id);
-        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
-      }
+    // Chunk with watermarks
+    const chunks = chunkDocument(doc.normalized_content, doc.id);
+    if (chunks.length === 0) {
+      return json({ error: "No chunks produced from content" }, 422);
     }
 
-    console.log(`Indexer complete: ${docs.length} docs, ${totalSegments} segments, ${totalEmbedded} embedded`);
-    if (errors.length) console.warn("Indexer errors:", errors);
+    // Embed — throws on failure
+    const embeddingInputs = chunks.map((c) => buildEmbeddingInput(c, frontMatter));
+    const embeddings = await getEmbeddings(embeddingInputs, openrouterKey);
 
-    return new Response(
-      JSON.stringify({
-        indexed: docs.length,
-        segments: totalSegments,
-        embedded: totalEmbedded,
-        errors: errors.length ? errors : undefined,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // Build segment rows
+    const segmentRows = chunks.map((chunk, idx) => ({
+      document_id: doc.id,
+      text_content: chunk.watermarked_text,
+      position_index: chunk.position,
+      token_count: chunk.tokenCount,
+      embedding: embeddings[idx] ? `[${embeddings[idx]!.join(",")}]` : null,
+      classification: null,
+      label: null,
+      rhetorical_flags: [],
+    }));
+
+    // Delete existing segments for re-index support
+    await supabase.from("segments").delete().eq("document_id", doc.id);
+
+    // Insert in batches
+    for (let i = 0; i < segmentRows.length; i += 50) {
+      const batch = segmentRows.slice(i, i + 50);
+      const { error: insertErr } = await supabase.from("segments").insert(batch);
+      if (insertErr) throw insertErr;
+    }
+
+    // Advance pipeline — idempotency guard
+    const { data: updated, error: updateErr } = await supabase
+      .from("documents")
+      .update({ pipeline_status: "classifying" })
+      .eq("id", doc.id)
+      .eq("pipeline_status", "indexing")
+      .select("id")
+      .maybeSingle();
+
+    if (updateErr) throw updateErr;
+    if (!updated) {
+      return json({ skipped: true, message: "Document status changed during processing (race)" });
+    }
+
+    const embedded = embeddings.filter(Boolean).length;
+    console.log(`Indexer done: ${doc.id} — ${chunks.length} segments, ${embedded} embedded`);
+    return json({ indexed: 1, id: doc.id, segments: chunks.length, embedded });
   } catch (e) {
-    console.error("Indexer fatal error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Indexer error:", msg);
+    return json({ error: msg }, 500);
   }
 });

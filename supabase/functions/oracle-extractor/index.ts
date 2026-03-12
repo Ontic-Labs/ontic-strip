@@ -10,6 +10,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const LLM_TIMEOUT_MS = 60_000;
+
 // --------------- Risk classification ---------------
 
 // High-risk keyword patterns that require elevated evidence thresholds
@@ -114,9 +116,11 @@ async function extractClaims(
     })
   );
 
+  const { systemPrompt, config } = compilePrompt("extractor", extractorTemplate);
+
+  let content: string;
   try {
-    const { systemPrompt, config } = compilePrompt("extractor", extractorTemplate);
-    const { content } = await callLlm({
+    ({ content } = await callLlm({
       gateway: config.gateway,
       model: config.model,
       systemPrompt,
@@ -124,48 +128,54 @@ async function extractClaims(
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       apiKey,
-    });
-
-    const parsed = JSON.parse(content);
-
-    if (Array.isArray(parsed)) {
-      for (const item of parsed) {
-        const segIndex = item.segment_index;
-        const claims: ExtractedClaim[] = item.claims || [];
-
-        if (segIndex !== undefined && segIndex >= 0 && segIndex < segments.length) {
-          const segId = segments[segIndex].id;
-          const validated = claims
-            .filter((c: ExtractedClaim) => c.claim_text && c.claim_text.length > 10)
-            .map((c: ExtractedClaim) => ({
-              claim_text: c.claim_text,
-              sire_scope: {
-                entities: c.sire_scope?.entities || [],
-                topics: c.sire_scope?.topics || [],
-                temporal_scope: c.sire_scope?.temporal_scope || null,
-              },
-              sire_information: {
-                time_qualifier: c.sire_information?.time_qualifier || null,
-                geography: c.sire_information?.geography || null,
-                conditions: c.sire_information?.conditions || null,
-                quantifiers: c.sire_information?.quantifiers || null,
-              },
-              sire_retrieval: {
-                search_queries: c.sire_retrieval?.search_queries || [],
-                evidence_tiers: c.sire_retrieval?.evidence_tiers || ["T3_reference", "T5_corpus"],
-                time_window: c.sire_retrieval?.time_window || null,
-              },
-              sire_exclusions: {
-                is_checkable: c.sire_exclusions?.is_checkable !== false,
-                exclusion_reasons: c.sire_exclusions?.exclusion_reasons || [],
-              },
-            }));
-          results.set(segId, validated);
-        }
-      }
-    }
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    }));
   } catch (e) {
-    console.error("Extraction batch failed:", e);
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new Error(`LLM extraction timed out after ${LLM_TIMEOUT_MS}ms`);
+    }
+    throw e;
+  }
+
+  const parsed = JSON.parse(content);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Expected array of extraction results, got ${typeof parsed}`);
+  }
+
+  for (const item of parsed) {
+    const segIndex = item.segment_index;
+    const claims: ExtractedClaim[] = item.claims || [];
+
+    if (segIndex !== undefined && segIndex >= 0 && segIndex < segments.length) {
+      const segId = segments[segIndex].id;
+      const validated = claims
+        .filter((c: ExtractedClaim) => c.claim_text && c.claim_text.length > 10)
+        .map((c: ExtractedClaim) => ({
+          claim_text: c.claim_text,
+          sire_scope: {
+            entities: c.sire_scope?.entities || [],
+            topics: c.sire_scope?.topics || [],
+            temporal_scope: c.sire_scope?.temporal_scope || null,
+          },
+          sire_information: {
+            time_qualifier: c.sire_information?.time_qualifier || null,
+            geography: c.sire_information?.geography || null,
+            conditions: c.sire_information?.conditions || null,
+            quantifiers: c.sire_information?.quantifiers || null,
+          },
+          sire_retrieval: {
+            search_queries: c.sire_retrieval?.search_queries || [],
+            evidence_tiers: c.sire_retrieval?.evidence_tiers || ["T3_reference", "T5_corpus"],
+            time_window: c.sire_retrieval?.time_window || null,
+          },
+          sire_exclusions: {
+            is_checkable: c.sire_exclusions?.is_checkable !== false,
+            exclusion_reasons: c.sire_exclusions?.exclusion_reasons || [],
+          },
+        }));
+      results.set(segId, validated);
+    }
   }
 
   return results;
@@ -178,6 +188,12 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -185,191 +201,161 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     let documentId: string | null = null;
-    let batchSize = 5;
-    let segmentBatchSize = 5;
     try {
       const body = await req.json();
       documentId = body.document_id || null;
-      batchSize = body.batch_size || 5;
-      segmentBatchSize = body.segment_batch_size || 8;
     } catch {
       // No body
     }
 
-    // Find documents ready for extraction
-    let query = supabase
-      .from("documents")
-      .select("id")
-      .eq("pipeline_status", "extracting")
-      .order("created_at", { ascending: true })
-      .limit(batchSize);
-
-    if (documentId) {
-      query = supabase
-        .from("documents")
-        .select("id")
-        .eq("id", documentId)
-        .limit(1);
+    if (!documentId) {
+      return json({ error: "document_id is required" }, 400);
     }
 
-    const { data: docs, error: docsErr } = await query;
-    if (docsErr) throw docsErr;
-    if (!docs || docs.length === 0) {
-      return new Response(
-        JSON.stringify({ extracted: 0, message: "No documents to extract" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Idempotency: only process if still in extracting state
+    const { data: doc, error: fetchErr } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("id", documentId)
+      .eq("pipeline_status", "extracting")
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!doc) {
+      return json({ skipped: true, message: "Document not in extracting state (already processed or missing)" });
+    }
+
+    // Get FACTUAL_CLAIM segments
+    const { data: segments, error: segErr } = await supabase
+      .from("segments")
+      .select("id, text_content, position_index, rhetorical_flags")
+      .eq("document_id", doc.id)
+      .eq("classification", "FACTUAL_CLAIM")
+      .order("position_index", { ascending: true });
+
+    if (segErr) throw segErr;
+    if (!segments || segments.length === 0) {
+      // No factual segments — advance
+      const { data: updated } = await supabase
+        .from("documents")
+        .update({ pipeline_status: "verifying" })
+        .eq("id", doc.id)
+        .eq("pipeline_status", "extracting")
+        .select("id")
+        .maybeSingle();
+      return json({ extracted: 0, advanced: !!updated, message: "No factual segments to extract" });
+    }
+
+    // Filter to segments without claims yet (idempotent on retry)
+    const segIds = segments.map((s) => s.id);
+    const { data: existingClaims } = await supabase
+      .from("claims")
+      .select("segment_id")
+      .in("segment_id", segIds);
+
+    const alreadyExtracted = new Set((existingClaims || []).map((c) => c.segment_id));
+    const toProcess = segments.filter((s) => !alreadyExtracted.has(s.id));
+
+    if (toProcess.length === 0) {
+      const { data: updated } = await supabase
+        .from("documents")
+        .update({ pipeline_status: "verifying" })
+        .eq("id", doc.id)
+        .eq("pipeline_status", "extracting")
+        .select("id")
+        .maybeSingle();
+      return json({ extracted: 0, advanced: !!updated, message: "All segments already extracted" });
     }
 
     let totalClaims = 0;
     let totalCheckable = 0;
     let totalNotCheckable = 0;
     const riskCounts = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
-    const errors: string[] = [];
-    const isWorkerDispatch = !!documentId && docs.length === 1;
+    const SEGMENT_BATCH_SIZE = 8;
 
-    for (const doc of docs) {
-      try {
-        // Get FACTUAL_CLAIM segments for this document
-        const { data: segments, error: segErr } = await supabase
-          .from("segments")
-          .select("id, text_content, position_index, rhetorical_flags")
-          .eq("document_id", doc.id)
-          .eq("classification", "FACTUAL_CLAIM")
-          .order("position_index", { ascending: true });
+    // Process in batches
+    for (let i = 0; i < toProcess.length; i += SEGMENT_BATCH_SIZE) {
+      const batch = toProcess.slice(i, i + SEGMENT_BATCH_SIZE);
+      const batchInput = batch.map((s) => ({
+        id: s.id,
+        text: s.text_content.replace(/\n\n<!-- corpus-watermark:[^>]+-->/g, ""),
+        position: s.position_index,
+        rhetorical_flags: s.rhetorical_flags as Record<string, boolean> | null,
+      }));
 
-        if (segErr) throw segErr;
-        if (!segments || segments.length === 0) {
+      const extracted = await extractClaims(batchInput, openrouterKey);
+
+      // Insert claims into database
+      for (const [segmentId, claims] of extracted) {
+        for (const claim of claims) {
+          const isCheckable = claim.sire_exclusions.is_checkable;
+          const riskLevel = classifyClaimRisk(claim.claim_text);
+          const isAttribution = isAttributionClaim(claim.claim_text);
+          riskCounts[riskLevel as keyof typeof riskCounts]++;
+
+          const claimType = (claim.sire_retrieval as any)?.claim_type || "DIRECT";
+          const claimInsert: Record<string, unknown> = {
+            segment_id: segmentId,
+            document_id: doc.id,
+            claim_text: claim.claim_text,
+            sire_scope: claim.sire_scope,
+            sire_information: claim.sire_information,
+            sire_retrieval: {
+              ...claim.sire_retrieval,
+              is_attribution: isAttribution || claimType === "ATTRIBUTION",
+              claim_type: claimType,
+            },
+            sire_exclusions: claim.sire_exclusions,
+            veracity_label: isCheckable ? null : "NOT_CHECKABLE",
+            confidence_score: isCheckable ? null : 1.0,
+            risk_level: riskLevel,
+          };
+
+          const { error: insertErr } = await supabase.from("claims").insert(claimInsert);
+          if (insertErr) throw insertErr;
+
+          totalClaims++;
+          if (isCheckable) totalCheckable++;
+          else totalNotCheckable++;
+        }
+
+        // Update segment label for non-checkable if ALL claims are not checkable
+        if (claims.length > 0 && claims.every((c) => !c.sire_exclusions.is_checkable)) {
           await supabase
-            .from("documents")
-            .update({ pipeline_status: "verifying" })
-            .eq("id", doc.id);
-          continue;
+            .from("segments")
+            .update({ label: "NOT_CHECKABLE" })
+            .eq("id", segmentId);
         }
-
-        // Check which segments already have claims extracted
-        const segIds = segments.map((s) => s.id);
-        const { data: existingClaims } = await supabase
-          .from("claims")
-          .select("segment_id")
-          .in("segment_id", segIds);
-
-        const alreadyExtracted = new Set(
-          (existingClaims || []).map((c) => c.segment_id)
-        );
-        const toProcess = segments.filter((s) => !alreadyExtracted.has(s.id));
-
-        if (toProcess.length === 0) {
-          await supabase
-            .from("documents")
-            .update({ pipeline_status: "verifying" })
-            .eq("id", doc.id);
-          continue;
-        }
-
-        // Process in batches
-        for (let i = 0; i < toProcess.length; i += segmentBatchSize) {
-          const batch = toProcess.slice(i, i + segmentBatchSize);
-          const batchInput = batch.map((s) => ({
-            id: s.id,
-            text: s.text_content.replace(/\n\n<!-- corpus-watermark:[^>]+-->/g, ""),
-            position: s.position_index,
-            rhetorical_flags: s.rhetorical_flags as Record<string, boolean> | null,
-          }));
-
-          const extracted = await extractClaims(batchInput, openrouterKey);
-
-          // Insert claims into database
-          for (const [segmentId, claims] of extracted) {
-            for (const claim of claims) {
-              const isCheckable = claim.sire_exclusions.is_checkable;
-              const riskLevel = classifyClaimRisk(claim.claim_text);
-              const isAttribution = isAttributionClaim(claim.claim_text);
-              riskCounts[riskLevel as keyof typeof riskCounts]++;
-
-              const claimType = (claim.sire_retrieval as any)?.claim_type || "DIRECT";
-              const claimInsert: Record<string, unknown> = {
-                segment_id: segmentId,
-                document_id: doc.id,
-                claim_text: claim.claim_text,
-                sire_scope: claim.sire_scope,
-                sire_information: claim.sire_information,
-                sire_retrieval: {
-                  ...claim.sire_retrieval,
-                  is_attribution: isAttribution || claimType === "ATTRIBUTION",
-                  claim_type: claimType,
-                },
-                sire_exclusions: claim.sire_exclusions,
-                veracity_label: isCheckable ? null : "NOT_CHECKABLE",
-                confidence_score: isCheckable ? null : 1.0,
-                risk_level: riskLevel,
-              };
-
-              const { error: insertErr } = await supabase.from("claims").insert(claimInsert);
-
-              if (insertErr) {
-                errors.push(`Claim insert for seg ${segmentId}: ${insertErr.message}`);
-              } else {
-                totalClaims++;
-                if (isCheckable) totalCheckable++;
-                else totalNotCheckable++;
-              }
-            }
-
-            // Update segment label for non-checkable if ALL claims are not checkable
-            const segClaims = claims;
-            if (segClaims.length > 0 && segClaims.every((c) => !c.sire_exclusions.is_checkable)) {
-              await supabase
-                .from("segments")
-                .update({ label: "NOT_CHECKABLE" })
-                .eq("id", segmentId);
-            }
-          }
-        }
-
-        // Advance document to verifying stage
-        await supabase
-          .from("documents")
-          .update({ pipeline_status: "verifying" })
-          .eq("id", doc.id);
-      } catch (e) {
-        const msg = `Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`;
-        if (isWorkerDispatch) {
-          return new Response(
-            JSON.stringify({ error: msg }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        errors.push(msg);
-        const { error: updErr } = await supabase
-          .from("documents")
-          .update({ pipeline_status: "failed" })
-          .eq("id", doc.id);
-        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
       }
     }
 
-    console.log(
-      `Extractor complete: ${totalClaims} claims (${totalCheckable} checkable, ${totalNotCheckable} not checkable) | Risk: C=${riskCounts.CRITICAL} H=${riskCounts.HIGH} M=${riskCounts.MEDIUM} L=${riskCounts.LOW}`
-    );
-    if (errors.length) console.warn("Extractor errors:", errors);
+    // Advance pipeline — idempotency guard
+    const { data: updated, error: updateErr } = await supabase
+      .from("documents")
+      .update({ pipeline_status: "verifying" })
+      .eq("id", doc.id)
+      .eq("pipeline_status", "extracting")
+      .select("id")
+      .maybeSingle();
 
-    return new Response(
-      JSON.stringify({
-        documents: docs.length,
-        claims_extracted: totalClaims,
-        checkable: totalCheckable,
-        not_checkable: totalNotCheckable,
-        risk_breakdown: riskCounts,
-        errors: errors.length ? errors : undefined,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    if (updateErr) throw updateErr;
+    if (!updated) {
+      return json({ skipped: true, message: "Document status changed during processing (race)" });
+    }
+
+    console.log(
+      `Extractor done: ${doc.id} — ${totalClaims} claims (${totalCheckable} checkable, ${totalNotCheckable} not checkable) | Risk: C=${riskCounts.CRITICAL} H=${riskCounts.HIGH} M=${riskCounts.MEDIUM} L=${riskCounts.LOW}`
     );
+    return json({
+      extracted: totalClaims,
+      id: doc.id,
+      checkable: totalCheckable,
+      not_checkable: totalNotCheckable,
+      risk_breakdown: riskCounts,
+    });
   } catch (e) {
-    console.error("Extractor fatal error:", e);
-    return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Extractor error:", msg);
+    return json({ error: msg }, 500);
   }
 });
