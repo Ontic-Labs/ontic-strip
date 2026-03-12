@@ -1,0 +1,10 @@
+node_modules
+dist
+*.md
+.env*
+src/
+public/
+docs/
+supabase/
+api/
+scripts/
