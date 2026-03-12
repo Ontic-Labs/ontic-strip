@@ -16,7 +16,7 @@
       "destination": "/api/og?path=/$1"
     },
     {
-      "source": "/((?!assets/|api/|robots.txt|llms.txt|favicon.ico).*)",
+      "source": "/((?!assets/|api/|locales/|robots.txt|llms.txt|favicon.ico).*)",
       "destination": "/index.html"
     }
   ],

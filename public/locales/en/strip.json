@@ -25,5 +25,105 @@
   },
   "lowSample": "Low sample size",
   "lowSampleWarning": "Low sample size",
-  "lowSampleTooltip": "Fewer than 20 documents were available for this bucket; treat the score as advisory."
+  "lowSampleTooltip": "Fewer than 20 documents were available for this bucket; treat the score as advisory.",
+  "segmentLabels": {
+    "SUPPORTED": "Supported",
+    "CONTRADICTED": "Disputed",
+    "MIXED": "Mixed",
+    "UNKNOWN": "Unknown",
+    "NOT_CHECKABLE": "Not Checkable",
+    "OPINION": "Opinion",
+    "NEUTRAL": "Neutral",
+    "OTHER": "Other"
+  },
+  "segmentDescriptions": {
+    "SUPPORTED": "Claim backed by independent evidence",
+    "CONTRADICTED": "Evidence contradicts this claim",
+    "MIXED": "Some evidence supports, some contradicts",
+    "UNKNOWN": "No sufficient evidence found",
+    "OPINION": "Editorial opinion or analysis",
+    "NOT_CHECKABLE": "Cannot be verified against evidence",
+    "NEUTRAL": "Informational, not a factual claim",
+    "OTHER": "Does not fit other categories"
+  },
+  "tierNames": {
+    "T1": "Primary Source",
+    "T2": "Wire Service",
+    "T3": "Reference",
+    "T4": "Established News Organization",
+    "T5": "Internal Corpus"
+  },
+  "riskLevelNames": {
+    "LOW": "Low",
+    "MEDIUM": "Medium",
+    "HIGH": "High",
+    "CRITICAL": "Critical"
+  },
+  "gapReasonNames": {
+    "NO_RELEVANT_EVIDENCE": "No relevant evidence found",
+    "CIRCULAR_ONLY": "Only circular/self-referential evidence",
+    "EVIDENCE_CONFLICT": "Sources conflict",
+    "INSUFFICIENT_TIER_FOR_RISK": "Insufficient evidence tier for claim risk",
+    "PRIMARY_SOURCE_NOT_RETRIEVED": "Primary source not retrieved",
+    "NEUTRAL_ONLY": "Evidence found but inconclusive",
+    "WEAK_SUPPORT": "Supporting evidence too weak",
+    "WEAK_CONTRADICTION": "Contradicting evidence too weak",
+    "WEAK_CONFLICT": "Conflicting evidence but neither side strong enough"
+  },
+  "legend": {
+    "dialogTitle": "How to Read the Results",
+    "theStrip": "The Strip",
+    "stripExplanation": "The colored bar on each article represents its segments, left to right. Each cell is colored by its evidence-alignment label:",
+    "scoresSection": "Scores",
+    "limitationsSection": "Limitations",
+    "limitationsText": "All results reflect alignment between extracted claims and retrieved evidence at analysis time. They do not constitute definitive judgments of truth. Scores are probabilistic statistical signals, not editorial or legal determinations.",
+    "groundingShort": "0–100 — Proportion of segments backed by actual evidence",
+    "groundingDetail": "Measures evidence coverage: what fraction of segments have supported, contradicted, or mixed verdicts. Segments with no evidence (Unknown) lower the score.",
+    "integrityShort": "0–100 — Weighted evidence alignment across segments",
+    "integrityDetail": "Supported segments contribute positively, contradicted segments incur a 1.2× penalty, mixed segments contribute lightly. Deliberately conservative — contradictions outweigh supports.",
+    "sentimentShort": "−1 to +1 — Emotional tone of the language",
+    "sentimentDetail": "Aggregated from per-segment analysis. Presented as supplementary context and does not factor into grounding or integrity calculations."
+  },
+  "sentiment": {
+    "label": "Sentiment",
+    "positive": "positive",
+    "negative": "negative",
+    "neutral": "neutral",
+    "pos": "Pos",
+    "neg": "Neg",
+    "neu": "Neu"
+  },
+  "ideology": {
+    "label": "Ideology",
+    "insufficientSignal": "insufficient signal",
+    "insufficientSignalTooltip": "Not enough politically-relevant stances were extracted to compute a reliable ideology score.",
+    "noData": "No ideology data available for this article.",
+    "economic": "Economic",
+    "social": "Social",
+    "econ": "Econ",
+    "method": "Method",
+    "stances": "Stances",
+    "propositions": "propositions",
+    "confidence": "Confidence",
+    "axisLabels": {
+      "strongLeft": "Strong Left",
+      "leftLean": "Left-Lean",
+      "center": "Center",
+      "rightLean": "Right-Lean",
+      "strongRight": "Strong Right",
+      "strongProgressive": "Strong Progressive",
+      "progressiveLean": "Progressive-Lean",
+      "strongConservative": "Strong Conservative",
+      "conservativeLean": "Conservative-Lean"
+    }
+  },
+  "bias": {
+    "left": "Left",
+    "center": "Center",
+    "right": "Right",
+    "leftLeaning": "Left-Leaning",
+    "rightLeaning": "Right-Leaning",
+    "blindspotLeft": "Blindspot for the Left",
+    "blindspotRight": "Blindspot for the Right"
+  }
 }

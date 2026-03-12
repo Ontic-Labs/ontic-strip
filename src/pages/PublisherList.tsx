@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 const CATEGORIES: { value: SourceCategory | "all"; label: string; color: string }[] = [
   { value: "all", label: "All", color: "bg-muted text-foreground" },
@@ -36,14 +37,21 @@ interface PublisherEntry {
 }
 
 export default function PublisherList() {
+  const { t, i18n } = useTranslation("pages");
+  const { t: tUI } = useTranslation("ui");
+  const locale = i18n.language;
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<SourceCategory | "all">("all");
   const [page, setPage] = useState(1);
 
   const { data: feeds } = useQuery({
-    queryKey: ["feeds"],
+    queryKey: ["feeds", locale],
     queryFn: async () => {
-      const { data, error } = await supabase.from("feeds").select("*").order("publisher_name");
+      const { data, error } = await supabase
+        .from("feeds")
+        .select("*")
+        .eq("locale", locale)
+        .order("publisher_name");
       if (error) throw error;
       return data as unknown as Feed[];
     },
@@ -152,16 +160,18 @@ export default function PublisherList() {
       />
       <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6 px-4 sm:px-6">
         <div className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">Publishers</h1>
+          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
+            {t("publishers.title")}
+          </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Integrity and grounding baselines across {publishers.length} sources
+            {t("publishers.description", { count: publishers.length })}
           </p>
         </div>
 
         {/* Search + Category Filters */}
         <div className="space-y-3">
           <Input
-            placeholder="Search publishers…"
+            placeholder={t("publishers.searchPlaceholder")}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -188,7 +198,7 @@ export default function PublisherList() {
                       : "bg-muted/50 text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {cat.label}
+                  {tUI(`categories.${cat.value}`)}
                   <span
                     className={cn("text-[10px] font-mono", isActive ? "opacity-80" : "opacity-50")}
                   >
@@ -206,16 +216,18 @@ export default function PublisherList() {
             <div className="text-3xl sm:text-4xl">◎</div>
             {publishers.length === 0 ? (
               <>
-                <h2 className="text-base sm:text-lg font-semibold">No publishers yet</h2>
+                <h2 className="text-base sm:text-lg font-semibold">
+                  {t("publishers.noPublishersYet")}
+                </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Publishers appear once you add RSS feeds.
+                  {t("publishers.noPublishersYetHint")}
                 </p>
               </>
             ) : (
               <>
-                <h2 className="text-base sm:text-lg font-semibold">No matches</h2>
+                <h2 className="text-base sm:text-lg font-semibold">{tUI("empty.noMatches")}</h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Try a different search or category.
+                  {tUI("empty.tryDifferent")}
                 </p>
               </>
             )}
@@ -224,8 +236,12 @@ export default function PublisherList() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing publishers {(currentPage - 1) * PUBLISHERS_PER_PAGE + 1}-
-                {Math.min(currentPage * PUBLISHERS_PER_PAGE, totalPublishers)} of {totalPublishers}
+                {tUI("pagination.showingRange", {
+                  entity: t("publishers.title").toLowerCase(),
+                  start: (currentPage - 1) * PUBLISHERS_PER_PAGE + 1,
+                  end: Math.min(currentPage * PUBLISHERS_PER_PAGE, totalPublishers),
+                  total: totalPublishers,
+                })}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -234,10 +250,10 @@ export default function PublisherList() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </Button>
                 <span className="font-mono text-[11px]">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"
@@ -245,7 +261,7 @@ export default function PublisherList() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </Button>
               </div>
             </div>
@@ -255,7 +271,9 @@ export default function PublisherList() {
                 {/* Only show section headers when showing all categories */}
                 {activeCategory === "all" && (
                   <div className="flex items-center gap-2 mb-3">
-                    <h2 className="text-sm font-semibold font-mono tracking-tight">{label}</h2>
+                    <h2 className="text-sm font-semibold font-mono tracking-tight">
+                      {tUI(`categories.${category}`)}
+                    </h2>
                     <Badge
                       variant="secondary"
                       className={cn(
@@ -289,7 +307,7 @@ export default function PublisherList() {
                                     "bg-strip-supported/10 text-strip-supported",
                                 )}
                               >
-                                {cat}
+                                {tUI(`categories.${cat}`)}
                               </span>
                             </div>
                             <div className="flex gap-4 sm:gap-6">
@@ -298,8 +316,16 @@ export default function PublisherList() {
                                   7d
                                 </span>
                                 <div className="flex gap-2 sm:gap-3">
-                                  <ScoreBadge label="G" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
-                                  <ScoreBadge label="I" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
+                                  <ScoreBadge
+                                    label="G"
+                                    labelKey="grounding"
+                                    score={b7?.avg_grounding_score ?? null}
+                                  />
+                                  <ScoreBadge
+                                    label="I"
+                                    labelKey="integrity"
+                                    score={b7?.avg_integrity_score ?? null}
+                                  />
                                 </div>
                               </div>
                               <div>
@@ -307,15 +333,29 @@ export default function PublisherList() {
                                   30d
                                 </span>
                                 <div className="flex gap-2 sm:gap-3">
-                                  <ScoreBadge label="G" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
-                                  <ScoreBadge label="I" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
+                                  <ScoreBadge
+                                    label="G"
+                                    labelKey="grounding"
+                                    score={b30?.avg_grounding_score ?? null}
+                                  />
+                                  <ScoreBadge
+                                    label="I"
+                                    labelKey="integrity"
+                                    score={b30?.avg_integrity_score ?? null}
+                                  />
                                 </div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground">
-                              {b7 && <span>{b7.document_count} articles (7d)</span>}
+                              {b7 && (
+                                <span>
+                                  {tUI("units.article", { count: b7.document_count })} (7d)
+                                </span>
+                              )}
                               {feedCount > 1 && (
-                                <span className="font-mono">{feedCount} feeds</span>
+                                <span className="font-mono">
+                                  {tUI("units.feed", { count: feedCount })}
+                                </span>
                               )}
                             </div>
                           </CardContent>

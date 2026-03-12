@@ -9,12 +9,17 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 type Period = "7d" | "30d";
 type SortKey = "integrity" | "grounding" | "factuality" | "articles";
 const LEADERBOARD_PER_PAGE = 20;
 
 export default function Leaderboard() {
+  const { t, i18n } = useTranslation("pages");
+  const locale = i18n.language;
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
   const [period, setPeriod] = useState<Period>("7d");
   const [sortBy, setSortBy] = useState<SortKey>("integrity");
   const [page, setPage] = useState(1);
@@ -29,21 +34,28 @@ export default function Leaderboard() {
   });
 
   const { data: feeds } = useQuery({
-    queryKey: ["feeds"],
+    queryKey: ["feeds", locale],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("feeds")
-        .select("publisher_name, source_category");
+        .select("publisher_name, source_category")
+        .eq("locale", locale);
       if (error) throw error;
       return data as { publisher_name: string; source_category: string }[];
     },
   });
+
+  const localePublishers = useMemo(
+    () => new Set(feeds?.map((f) => f.publisher_name) ?? []),
+    [feeds],
+  );
 
   const categoryMap = new Map(feeds?.map((f) => [f.publisher_name, f.source_category]) ?? []);
 
   const filtered =
     baselines
       ?.filter((b) => b.period === period)
+      .filter((b) => localePublishers.size === 0 || localePublishers.has(b.publisher_name))
       .sort((a, b) => {
         if (sortBy === "integrity")
           return (b.avg_integrity_score ?? 0) - (a.avg_integrity_score ?? 0);
@@ -83,11 +95,9 @@ export default function Leaderboard() {
       <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6 px-4 sm:px-6 max-w-3xl">
         <div className="space-y-1">
           <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
-            Publisher Leaderboard
+            {t("leaderboard.title")}
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Publishers ranked by evidence-backed reporting quality
-          </p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t("leaderboard.description")}</p>
         </div>
 
         {/* Controls */}
@@ -115,11 +125,11 @@ export default function Leaderboard() {
           <div className="flex rounded-md border text-xs font-mono">
             {(
               [
-                ["integrity", "Integrity"],
-                ["grounding", "Grounding"],
-                ["factuality", "Factuality"],
-                ["articles", "Articles"],
-              ] as const
+                ["integrity", t("leaderboard.sortIntegrity")],
+                ["grounding", t("leaderboard.sortGrounding")],
+                ["factuality", t("leaderboard.sortFactuality")],
+                ["articles", t("leaderboard.sortArticles")],
+              ] as [SortKey, string][]
             ).map(([key, label]) => (
               <button
                 type="button"
@@ -143,7 +153,7 @@ export default function Leaderboard() {
             to="/compare"
             className="text-xs text-primary hover:underline font-medium font-mono ml-auto"
           >
-            Compare publishers →
+            {t("leaderboard.comparePublishers")}
           </Link>
         </div>
 
@@ -156,14 +166,18 @@ export default function Leaderboard() {
           </div>
         ) : filtered.length === 0 ? (
           <p className="text-center py-12 text-muted-foreground text-sm">
-            No baseline data available yet.
+            {t("leaderboard.noData")}
           </p>
         ) : (
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing publishers {(currentPage - 1) * LEADERBOARD_PER_PAGE + 1}-
-                {Math.min(currentPage * LEADERBOARD_PER_PAGE, totalRows)} of {totalRows}
+                {tUI("pagination.showingRange", {
+                  entity: "publishers",
+                  start: (currentPage - 1) * LEADERBOARD_PER_PAGE + 1,
+                  end: Math.min(currentPage * LEADERBOARD_PER_PAGE, totalRows),
+                  total: totalRows,
+                })}
               </span>
               {hasMultiplePages && (
                 <div className="flex items-center gap-2">
@@ -173,10 +187,10 @@ export default function Leaderboard() {
                     disabled={currentPage <= 1}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Previous
+                    {tUI("pagination.previous")}
                   </button>
                   <span className="font-mono text-[11px]">
-                    Page {currentPage} / {totalPages}
+                    {tUI("pagination.page", { current: currentPage, total: totalPages })}
                   </span>
                   <button
                     type="button"
@@ -184,7 +198,7 @@ export default function Leaderboard() {
                     disabled={currentPage >= totalPages}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Next
+                    {tUI("pagination.next")}
                   </button>
                 </div>
               )}
@@ -231,22 +245,35 @@ export default function Leaderboard() {
                                   "bg-strip-supported/10 text-strip-supported",
                               )}
                             >
-                              {category}
+                              {tUI(`categories.${category}`)}
                             </span>
                           </div>
                           <span className="text-[10px] text-muted-foreground font-mono">
-                            {baseline.document_count} article
-                            {baseline.document_count !== 1 ? "s" : ""}
+                            {tUI("units.article", { count: baseline.document_count })}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-3 sm:gap-4 shrink-0 flex-wrap justify-end">
-                          <ScoreBadge label="G" labelKey="grounding" score={baseline.avg_grounding_score} />
-                          <ScoreBadge label="I" labelKey="integrity" score={baseline.avg_integrity_score} />
-                          <ScoreBadge label="F" labelKey="factuality" score={baseline.avg_factuality_score} />
+                          <ScoreBadge
+                            label="G"
+                            labelKey="grounding"
+                            score={baseline.avg_grounding_score}
+                          />
+                          <ScoreBadge
+                            label="I"
+                            labelKey="integrity"
+                            score={baseline.avg_integrity_score}
+                          />
+                          <ScoreBadge
+                            label="F"
+                            labelKey="factuality"
+                            score={baseline.avg_factuality_score}
+                          />
                           {baseline.avg_ideology_economic != null && (
                             <div className="flex items-center gap-1 text-xs">
-                              <span className="text-muted-foreground text-[10px]">Ideo</span>
+                              <span className="text-muted-foreground text-[10px]">
+                                {t("leaderboard.ideo")}
+                              </span>
                               <span className="font-mono text-muted-foreground text-[10px]">
                                 {baseline.avg_ideology_economic > 0 ? "+" : ""}
                                 {baseline.avg_ideology_economic.toFixed(1)}/
@@ -273,10 +300,10 @@ export default function Leaderboard() {
                   disabled={currentPage <= 1}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </button>
                 <span className="font-mono text-[11px] text-muted-foreground">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   type="button"
@@ -284,7 +311,7 @@ export default function Leaderboard() {
                   disabled={currentPage >= totalPages}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </button>
               </div>
             )}

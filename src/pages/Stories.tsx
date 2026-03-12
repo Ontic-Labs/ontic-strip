@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "../i18n";
 
 const STORIES_PER_PAGE = 24;
 
@@ -40,22 +41,11 @@ interface StoryCluster {
   publisherCount: number;
 }
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  political: "Politics",
-  conflict: "Conflict",
-  economic: "Economy",
-  social: "Social",
-  legal: "Legal",
-  environmental: "Environment",
-  health: "Health",
-  technological: "Tech",
-  cultural: "Culture",
-  disaster: "Disaster",
-  diplomatic: "Diplomacy",
-  unclassified: "Other",
-};
-
 export default function Stories() {
+  const { t, i18n } = useTranslation("stories");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
+  const locale = i18n.language;
   const [clustering, setClustering] = useState(false);
   const [blindspotOnly, setBlindspotOnly] = useState(false);
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("all");
@@ -66,7 +56,7 @@ export default function Stories() {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["story-clusters"],
+    queryKey: ["story-clusters", locale],
     queryFn: async (): Promise<StoryCluster[]> => {
       const { data: eventRows, error: cErr } = await (supabase as any)
         .from("events")
@@ -80,8 +70,9 @@ export default function Stories() {
       const eventIds = (eventRows as EventRow[]).map((e) => e.id);
       const { data: docs, error: dErr } = await (supabase as any)
         .from("documents")
-        .select("*, feeds(*)")
-        .in("event_id", eventIds);
+        .select("*, feeds!inner(*)")
+        .in("event_id", eventIds)
+        .eq("feeds.locale", locale);
 
       if (dErr) throw dErr;
 
@@ -98,7 +89,7 @@ export default function Stories() {
           const publishers = new Set(eventDocs.map((d) => d.feeds?.publisher_name ?? "Unknown"));
           return {
             id: e.id,
-            title: e.title ?? "Untitled Event",
+            title: e.title ?? t("untitledEvent"),
             summary: e.summary,
             documents: eventDocs,
             event_type: e.event_type ?? "unclassified",
@@ -209,10 +200,8 @@ export default function Stories() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold font-mono tracking-tight">Stories</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Same story, different perspectives — see how outlets cover the same events
-            </p>
+            <h1 className="text-xl font-bold font-mono tracking-tight">{t("pageTitle")}</h1>
+            <p className="text-sm text-muted-foreground mt-1">{t("pageSubtitle")}</p>
           </div>
           <Button
             variant="outline"
@@ -221,7 +210,7 @@ export default function Stories() {
             disabled={clustering}
             className="font-mono text-xs"
           >
-            {clustering ? "Enriching…" : "↻ Re-enrich"}
+            {clustering ? t("enriching") : t("reEnrich")}
           </Button>
         </div>
 
@@ -241,7 +230,7 @@ export default function Stories() {
                   : "border-border text-muted-foreground hover:bg-accent",
               )}
             >
-              All ({clusters?.length ?? 0})
+              {tUI("categories.all")} ({clusters?.length ?? 0})
             </button>
             {eventTypes.map(({ type, count }) => (
               <button
@@ -258,7 +247,7 @@ export default function Stories() {
                     : "border-border text-muted-foreground hover:bg-accent",
                 )}
               >
-                {EVENT_TYPE_LABELS[type] ?? type} ({count})
+                {tUI(`eventTypes.${type}`) ?? type} ({count})
               </button>
             ))}
           </div>
@@ -268,15 +257,15 @@ export default function Stories() {
         <div className="flex items-center gap-4 text-[10px] font-mono text-muted-foreground flex-wrap">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-bias-left" />
-            <span>Left</span>
+            <span>{tStrip("bias.left")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-bias-center" />
-            <span>Center</span>
+            <span>{tStrip("bias.center")}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-bias-right" />
-            <span>Right</span>
+            <span>{tStrip("bias.right")}</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
             {lowCoverageCount > 0 && (
@@ -284,7 +273,7 @@ export default function Stories() {
                 variant="outline"
                 className="text-[10px] font-mono border-strip-unknown/40 text-strip-unknown"
               >
-                {lowCoverageCount} low coverage
+                {t("lowCoverageCount", { count: lowCoverageCount })}
               </Badge>
             )}
             {blindspotCount > 0 && (
@@ -302,8 +291,8 @@ export default function Stories() {
                 )}
               >
                 {blindspotOnly
-                  ? `Showing ${blindspotCount} blindspot${blindspotCount !== 1 ? "s" : ""}`
-                  : `${blindspotCount} blindspot${blindspotCount !== 1 ? "s" : ""}`}
+                  ? t("showingBlindspots", { count: blindspotCount })
+                  : t("blindspot", { count: blindspotCount })}
               </button>
             )}
           </div>
@@ -319,9 +308,7 @@ export default function Stories() {
         ) : !displayClusters || displayClusters.length === 0 ? (
           <div className="text-center py-16 space-y-3">
             <p className="text-muted-foreground">
-              {eventTypeFilter !== "all"
-                ? "No events match this filter."
-                : "No event clusters yet."}
+              {eventTypeFilter !== "all" ? t("noEventsFiltered") : t("noEventsYet")}
             </p>
             {eventTypeFilter !== "all" ? (
               <Button
@@ -333,11 +320,11 @@ export default function Stories() {
                 }}
                 className="font-mono text-xs"
               >
-                Clear filter
+                {t("clearFilter")}
               </Button>
             ) : (
               <Button onClick={runClustering} disabled={clustering} className="font-mono text-xs">
-                {clustering ? "Enriching…" : "Run Enrichment Now"}
+                {clustering ? t("enriching") : t("runEnrichmentNow")}
               </Button>
             )}
           </div>
@@ -345,8 +332,12 @@ export default function Stories() {
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing stories {(currentPage - 1) * STORIES_PER_PAGE + 1}-
-                {Math.min(currentPage * STORIES_PER_PAGE, totalStories)} of {totalStories}
+                {tUI("pagination.showingRange", {
+                  entity: "stories",
+                  start: (currentPage - 1) * STORIES_PER_PAGE + 1,
+                  end: Math.min(currentPage * STORIES_PER_PAGE, totalStories),
+                  total: totalStories,
+                })}
               </span>
               {hasMultiplePages && (
                 <div className="flex items-center gap-2">
@@ -356,10 +347,10 @@ export default function Stories() {
                     disabled={currentPage <= 1}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Previous
+                    {tUI("pagination.previous")}
                   </button>
                   <span className="font-mono text-[11px]">
-                    Page {currentPage} / {totalPages}
+                    {tUI("pagination.page", { current: currentPage, total: totalPages })}
                   </span>
                   <button
                     type="button"
@@ -367,7 +358,7 @@ export default function Stories() {
                     disabled={currentPage >= totalPages}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Next
+                    {tUI("pagination.next")}
                   </button>
                 </div>
               )}
@@ -379,7 +370,7 @@ export default function Stories() {
                   key={cluster.id}
                   cluster={cluster}
                   lowCoverage={cluster.publisherCount < 3}
-                  eventType={EVENT_TYPE_LABELS[cluster.event_type] ?? cluster.event_type}
+                  eventType={tUI(`eventTypes.${cluster.event_type}`) ?? cluster.event_type}
                   geo={cluster.geo_primary}
                 />
               ))}
@@ -393,10 +384,10 @@ export default function Stories() {
                   disabled={currentPage <= 1}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </button>
                 <span className="font-mono text-[11px] text-muted-foreground">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   type="button"
@@ -404,7 +395,7 @@ export default function Stories() {
                   disabled={currentPage >= totalPages}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </button>
               </div>
             )}

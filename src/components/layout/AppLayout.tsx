@@ -3,8 +3,7 @@ import { cn } from "@/lib/utils";
 
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useTranslation } from '../../i18n';
-import i18n from '../../i18n';
+import { useTranslation } from "../../i18n";
 
 const NAV_ITEMS = [
   { href: "/stories", key: "nav.stories", icon: "◫" },
@@ -21,16 +20,17 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { t } = useTranslation('layout');
+  const { t, i18n: i18nInstance } = useTranslation("layout");
 
   // Close mobile menu on route change
   const { pathname } = location;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is intentionally a trigger dep
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
   return (
-    <div className="min-h-screen flex flex-col" dir={i18n.dir()}>
+    <div className="min-h-screen flex flex-col" dir={i18nInstance.dir()}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
         <div className="container flex h-14 items-center justify-between px-4 sm:px-6">
@@ -44,10 +44,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className="h-4 w-1 rounded-full bg-strip-unknown" />
               </div>
               <span className="font-mono font-bold text-sm tracking-tight hidden sm:inline">
-                {t('brand')}
+                {t("brand")}
               </span>
               <span className="font-mono font-bold text-sm tracking-tight sm:hidden">
-                {t('brandShort')}
+                {t("brandShort")}
               </span>
             </Link>
             {/* Desktop nav */}
@@ -71,12 +71,41 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Language switcher */}
+            <div className="flex items-center rounded-md border border-border text-xs font-medium overflow-hidden">
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1.5 transition-colors",
+                  !i18nInstance.language.startsWith("pt")
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                )}
+                onClick={() => void i18nInstance.changeLanguage("en")}
+                aria-label="English"
+              >
+                🇺🇸 EN
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "px-2 py-1.5 transition-colors",
+                  i18nInstance.language.startsWith("pt")
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                )}
+                onClick={() => void i18nInstance.changeLanguage("pt-BR")}
+                aria-label="Português"
+              >
+                🇧🇷 PT
+              </button>
+            </div>
             {/* Mobile menu button */}
             <button
               type="button"
               className="md:hidden p-2 rounded-md text-muted-foreground hover:bg-accent"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label={t('aria.toggleMenu')}
+              aria-label={t("aria.toggleMenu")}
             >
               {mobileMenuOpen ? "✕" : "☰"}
             </button>
@@ -117,16 +146,18 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Footer */}
       <footer className="border-t bg-card/60 py-4 sm:py-6">
         <div className="container px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="font-mono">{t('footer.copyright', { year: new Date().getFullYear() })}</span>
+          <span className="font-mono">
+            {t("footer.copyright", { year: new Date().getFullYear() })}
+          </span>
           <nav className="flex items-center gap-4 flex-wrap justify-center">
             <Link to="/publishers" className="hover:text-foreground transition-colors">
-              {t('nav.publishers')}
+              {t("nav.publishers")}
             </Link>
             <Link to="/docs" className="hover:text-foreground transition-colors">
-              {t('nav.docs')}
+              {t("nav.docs")}
             </Link>
             <Link to="/admin/feeds" className="hover:text-foreground transition-colors">
-              {t('nav.feedManagement')}
+              {t("nav.feedManagement")}
             </Link>
             <a
               href="https://github.com/Ontic-Labs/ontic-strip/blob/main/CONTRIBUTING.md"
@@ -134,13 +165,13 @@ export function AppLayout({ children }: AppLayoutProps) {
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"
             >
-              {t('nav.contributing')}
+              {t("nav.contributing")}
             </a>
             <Link to="/privacy" className="hover:text-foreground transition-colors">
-              {t('nav.privacy')}
+              {t("nav.privacy")}
             </Link>
             <Link to="/terms" className="hover:text-foreground transition-colors">
-              {t('nav.terms')}
+              {t("nav.terms")}
             </Link>
           </nav>
         </div>

@@ -1,12 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  STRIP_COLORS,
-  STRIP_LABEL_DESCRIPTIONS,
-  STRIP_LABEL_NAMES,
-  type SegmentLabel,
-} from "@/lib/types";
+import { STRIP_COLORS, type SegmentLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useTranslation } from "../../i18n";
 
 const LEGEND_ORDER: SegmentLabel[] = [
   "SUPPORTED",
@@ -18,26 +14,7 @@ const LEGEND_ORDER: SegmentLabel[] = [
   "NEUTRAL",
 ];
 
-const SCORE_DEFINITIONS = [
-  {
-    label: "Grounding",
-    short: "0–100 — Proportion of segments backed by actual evidence",
-    detail:
-      "Measures evidence coverage: what fraction of segments have supported, contradicted, or mixed verdicts. Segments with no evidence (Unknown) lower the score.",
-  },
-  {
-    label: "Integrity",
-    short: "0–100 — Weighted evidence alignment across segments",
-    detail:
-      "Supported segments contribute positively, contradicted segments incur a 1.2× penalty, mixed segments contribute lightly. Deliberately conservative — contradictions outweigh supports.",
-  },
-  {
-    label: "Sentiment",
-    short: "−1 to +1 — Emotional tone of the language",
-    detail:
-      "Aggregated from per-segment analysis. Presented as supplementary context and does not factor into grounding or integrity calculations.",
-  },
-];
+const SCORE_KEYS = ["grounding", "integrity", "sentiment"] as const;
 
 interface StripLegendProps {
   className?: string;
@@ -45,6 +22,7 @@ interface StripLegendProps {
 
 export function StripLegend({ className }: StripLegendProps) {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation("strip");
 
   return (
     <>
@@ -61,15 +39,15 @@ export function StripLegend({ className }: StripLegendProps) {
             <div key={label} className="flex items-center gap-1.5">
               <div className={cn("h-2.5 w-2.5 rounded-sm shrink-0", STRIP_COLORS[label])} />
               <span className="text-muted-foreground whitespace-nowrap">
-                {STRIP_LABEL_NAMES[label]}
+                {t(`segmentLabels.${label}`)}
               </span>
             </div>
           ))}
         </div>
         <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
-          {SCORE_DEFINITIONS.map(({ label }) => (
-            <span key={label} className="text-muted-foreground whitespace-nowrap font-mono">
-              {label}
+          {SCORE_KEYS.map((key) => (
+            <span key={key} className="text-muted-foreground whitespace-nowrap font-mono">
+              {t(`scoreLabels.${key}`, { defaultValue: t("sentiment.label") })}
             </span>
           ))}
         </div>
@@ -78,18 +56,17 @@ export function StripLegend({ className }: StripLegendProps) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-mono text-base">How to Read the Results</DialogTitle>
+            <DialogTitle className="font-mono text-base">{t("legend.dialogTitle")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 text-sm">
             {/* Strip section */}
             <div className="space-y-3">
               <h3 className="font-mono font-semibold text-xs uppercase tracking-wider text-foreground">
-                The Strip
+                {t("legend.theStrip")}
               </h3>
               <p className="text-muted-foreground leading-relaxed">
-                The colored bar on each article represents its segments, left to right. Each cell is
-                colored by its evidence-alignment label:
+                {t("legend.stripExplanation")}
               </p>
               <div className="space-y-2">
                 {LEGEND_ORDER.map((label) => (
@@ -99,11 +76,11 @@ export function StripLegend({ className }: StripLegendProps) {
                     />
                     <div>
                       <span className="font-semibold text-foreground">
-                        {STRIP_LABEL_NAMES[label]}
+                        {t(`segmentLabels.${label}`)}
                       </span>
                       <span className="text-muted-foreground">
                         {" "}
-                        — {STRIP_LABEL_DESCRIPTIONS[label]}
+                        — {t(`segmentDescriptions.${label}`)}
                       </span>
                     </div>
                   </div>
@@ -114,14 +91,16 @@ export function StripLegend({ className }: StripLegendProps) {
             {/* Scores section */}
             <div className="space-y-3">
               <h3 className="font-mono font-semibold text-xs uppercase tracking-wider text-foreground">
-                Scores
+                {t("legend.scoresSection")}
               </h3>
               <div className="space-y-3">
-                {SCORE_DEFINITIONS.map(({ label, short, detail }) => (
-                  <div key={label}>
-                    <div className="font-mono font-semibold text-foreground">{label}</div>
+                {SCORE_KEYS.map((key) => (
+                  <div key={key}>
+                    <div className="font-mono font-semibold text-foreground">
+                      {key === "sentiment" ? t("sentiment.label") : t(`scoreLabels.${key}`)}
+                    </div>
                     <p className="text-muted-foreground leading-relaxed">
-                      {short}. {detail}
+                      {t(`legend.${key}Short`)}. {t(`legend.${key}Detail`)}
                     </p>
                   </div>
                 ))}
@@ -131,12 +110,10 @@ export function StripLegend({ className }: StripLegendProps) {
             {/* Limitations */}
             <div className="space-y-2 border-t pt-4">
               <h3 className="font-mono font-semibold text-xs uppercase tracking-wider text-foreground">
-                Limitations
+                {t("legend.limitationsSection")}
               </h3>
               <p className="text-muted-foreground leading-relaxed text-xs">
-                All results reflect alignment between extracted claims and retrieved evidence at
-                analysis time. They do not constitute definitive judgments of truth. Scores are
-                probabilistic statistical signals, not editorial or legal determinations.
+                {t("legend.limitationsText")}
               </p>
             </div>
           </div>

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 const VERACITY_STYLES: Record<VeracityLabel, string> = {
   SUPPORTED: "border-strip-supported text-strip-supported",
@@ -17,14 +18,6 @@ const VERACITY_STYLES: Record<VeracityLabel, string> = {
   MIXED: "border-strip-mixed text-strip-mixed",
   UNKNOWN: "border-strip-unknown text-strip-unknown",
   NOT_CHECKABLE: "border-muted-foreground text-muted-foreground",
-};
-
-const VERACITY_NAMES: Record<VeracityLabel, string> = {
-  SUPPORTED: "Supported",
-  CONTRADICTED: "Disputed",
-  MIXED: "Mixed",
-  UNKNOWN: "Unknown",
-  NOT_CHECKABLE: "Not Checkable",
 };
 
 const RISK_STYLES: Record<RiskLevel, string> = {
@@ -46,6 +39,9 @@ interface ClaimResult {
 const CLAIMS_PER_PAGE = 20;
 
 export default function ClaimSearch() {
+  const { t } = useTranslation("pages");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const deferredQuery = useDeferredValue(query);
@@ -101,14 +97,14 @@ export default function ClaimSearch() {
       />
       <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6 px-4 sm:px-6 max-w-3xl">
         <div className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">Claim Search</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Search across all extracted claims from analyzed articles
-          </p>
+          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
+            {t("claimSearch.title")}
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t("claimSearch.description")}</p>
         </div>
 
         <Input
-          placeholder="Search claims (e.g. &quot;inflation rate&quot;, &quot;climate&quot;)..."
+          placeholder={t("claimSearch.placeholder")}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -120,14 +116,16 @@ export default function ClaimSearch() {
         {/* Summary stats */}
         {claims && claims.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap text-xs">
-            <span className="font-mono text-muted-foreground">{claims.length} claims found</span>
+            <span className="font-mono text-muted-foreground">
+              {t("claimSearch.claimsFound", { count: claims.length })}
+            </span>
             {Object.entries(veracityCounts).map(([label, count]) => (
               <Badge
                 key={label}
                 variant="outline"
                 className={cn("text-[10px] font-mono", VERACITY_STYLES[label as VeracityLabel])}
               >
-                {VERACITY_NAMES[label as VeracityLabel] ?? label}: {count}
+                {tStrip(`segmentLabels.${label}`)}: {count}
               </Badge>
             ))}
           </div>
@@ -136,7 +134,7 @@ export default function ClaimSearch() {
         {/* Results */}
         {deferredQuery.length < 3 ? (
           <p className="text-center py-12 text-muted-foreground text-sm">
-            Type at least 3 characters to search.
+            {t("claimSearch.minChars")}
           </p>
         ) : isLoading ? (
           <div className="space-y-2">
@@ -147,14 +145,20 @@ export default function ClaimSearch() {
         ) : !claims?.length ? (
           <div className="text-center py-12 space-y-2">
             <div className="text-3xl">⊘</div>
-            <p className="text-sm text-muted-foreground">No claims match "{deferredQuery}"</p>
+            <p className="text-sm text-muted-foreground">
+              {t("claimSearch.noClaimsMatch", { query: deferredQuery })}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing claims {(currentPage - 1) * CLAIMS_PER_PAGE + 1}-
-                {Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims)} of {totalClaims}
+                {tUI("pagination.showingRange", {
+                  entity: "claims",
+                  start: (currentPage - 1) * CLAIMS_PER_PAGE + 1,
+                  end: Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims),
+                  total: totalClaims,
+                })}
               </span>
               {hasMultiplePages && (
                 <div className="flex items-center gap-2">
@@ -164,10 +168,10 @@ export default function ClaimSearch() {
                     disabled={currentPage <= 1}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Previous
+                    {tUI("pagination.previous")}
                   </button>
                   <span className="font-mono text-[11px]">
-                    Page {currentPage} / {totalPages}
+                    {tUI("pagination.page", { current: currentPage, total: totalPages })}
                   </span>
                   <button
                     type="button"
@@ -175,7 +179,7 @@ export default function ClaimSearch() {
                     disabled={currentPage >= totalPages}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Next
+                    {tUI("pagination.next")}
                   </button>
                 </div>
               )}
@@ -196,14 +200,14 @@ export default function ClaimSearch() {
                               VERACITY_STYLES[claim.veracity_label],
                             )}
                           >
-                            {VERACITY_NAMES[claim.veracity_label]}
+                            {tStrip(`segmentLabels.${claim.veracity_label}`)}
                           </Badge>
                         )}
                         {claim.risk_level && (
                           <span
                             className={cn("text-[10px] font-mono", RISK_STYLES[claim.risk_level])}
                           >
-                            {claim.risk_level} risk
+                            {tStrip(`riskLevelNames.${claim.risk_level}`)} {tUI("units.risk")}
                           </span>
                         )}
                         <span className="text-[10px] text-muted-foreground font-mono ml-auto">
@@ -211,7 +215,7 @@ export default function ClaimSearch() {
                           {claim.documents?.title
                             ? claim.documents.title.slice(0, 60) +
                               (claim.documents.title.length > 60 ? "…" : "")
-                            : "Untitled"}
+                            : "\u2014"}
                         </span>
                       </div>
                     </CardContent>
@@ -228,10 +232,10 @@ export default function ClaimSearch() {
                   disabled={currentPage <= 1}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </button>
                 <span className="font-mono text-[11px] text-muted-foreground">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   type="button"
@@ -239,7 +243,7 @@ export default function ClaimSearch() {
                   disabled={currentPage >= totalPages}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </button>
               </div>
             )}

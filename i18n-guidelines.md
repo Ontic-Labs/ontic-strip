@@ -24,10 +24,10 @@
 
 ## Linting Script Example
 - Use [eslint-plugin-i18next](https://github.com/gilbsgilbs/eslint-plugin-i18next) or a custom script to detect hardcoded strings and missing keys.
-- Example npm script:
+- The lint script is defined in `package.json` under `scripts.lint:i18n` and runs via:
 
-```json
-"lint:i18n": "eslint --ext .ts,.tsx src/ --rule 'i18next/no-literal-string: [2, { markupOnly: true, ignoreAttribute: ['data-testid'] }] '"
+```bash
+npm run lint:i18n
 ```
 
 ## Review Checklist

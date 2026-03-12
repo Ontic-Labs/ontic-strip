@@ -1,6 +1,6 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useTranslation } from '../../i18n';
+import { useTranslation } from "../../i18n";
 
 interface ScoreBadgeProps {
   label?: string;
@@ -27,18 +27,21 @@ export function ScoreBadge({
   className,
   status,
 }: ScoreBadgeProps) {
-  const { t } = useTranslation('strip');
+  const { t } = useTranslation("strip");
   const displayLabel =
-    label ??
-    (labelKey ? t(`scoreLabels.${labelKey}`) : undefined) ??
-    t('scoreLabels.grounding');
+    label ?? (labelKey ? t(`scoreLabels.${labelKey}`) : undefined) ?? t("scoreLabels.grounding");
   const tooltipText =
     description ??
     (labelKey
       ? t(`scoreDescriptions.${labelKey}`, {
           defaultValue: displayLabel,
         })
-      : undefined);
+      : label
+        ? t(
+            `scoreDescriptions.${label.replace(/\s+/g, "").charAt(0).toLowerCase() + label.replace(/\s+/g, "").slice(1)}`,
+            { defaultValue: "" },
+          ) || undefined
+        : undefined);
   const isLowSample = status === "low_sample";
 
   if (score === null || score === undefined) {
@@ -74,11 +77,8 @@ export function ScoreBadge({
       <span className="text-muted-foreground">{displayLabel}</span>
       <span className={cn("font-mono font-semibold", getScoreColor(score))}>{pct}%</span>
       {isLowSample && (
-        <span
-          className="text-[10px] font-mono text-strip-mixed"
-          title={t('lowSampleWarning')}
-        >
-          ⚠ {t('lowSample')}
+        <span className="text-[10px] font-mono text-strip-mixed" title={t("lowSampleWarning")}>
+          ⚠ {t("lowSample")}
         </span>
       )}
     </div>
@@ -86,9 +86,7 @@ export function ScoreBadge({
 
   if (!tooltipText) return inner;
 
-  const fullTooltip = isLowSample
-    ? `${tooltipText}\n\n⚠ ${t('lowSampleTooltip')}`
-    : tooltipText;
+  const fullTooltip = isLowSample ? `${tooltipText}\n\n⚠ ${t("lowSampleTooltip")}` : tooltipText;
 
   return (
     <TooltipProvider delayDuration={200}>

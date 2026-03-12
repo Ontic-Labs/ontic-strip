@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import type { PipelineStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useTranslation } from '../../i18n';
+import { useTranslation } from "../../i18n";
 
 const STATUS_STYLES: Record<
   PipelineStatus,
@@ -23,7 +23,7 @@ interface PipelineStatusBadgeProps {
 }
 
 export function PipelineStatusBadge({ status, className }: PipelineStatusBadgeProps) {
-  const { t } = useTranslation('feed');
+  const { t } = useTranslation("feed");
   const style = STATUS_STYLES[status];
   const isProcessing = [
     "normalizing",

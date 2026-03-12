@@ -45,6 +45,7 @@ export interface Feed {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  locale: string;
 }
 
 export interface Document {

@@ -26,24 +26,29 @@ import { BASE_URL, SEOHead, collectionPageSchema } from "@/lib/seo";
 import type { Document, PublisherBaseline } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "../i18n";
 
 const CATEGORY_OPTIONS = ["all", "mainstream", "reference", "partisan", "fringe"] as const;
 type CategoryFilter = (typeof CATEGORY_OPTIONS)[number];
 const PUBLISHERS_PER_PAGE = 12;
 
 export default function FeedView() {
+  const { t, i18n } = useTranslation("feed");
+  const { t: tUI } = useTranslation("ui");
+  const locale = i18n.language;
   const [publisherFilter, setPublisherFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   const { data: documents, isLoading } = useQuery({
-    queryKey: ["documents_feed"],
+    queryKey: ["documents_feed", locale],
     queryFn: async () => {
       const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
       const { data, error } = await supabase
         .from("documents")
-        .select("*, feeds(*)")
+        .select("*, feeds!inner(*)")
+        .eq("feeds.locale", locale)
         .gte("published_at", sevenDaysAgo)
         .order("published_at", { ascending: false, nullsFirst: false })
         .limit(200);
@@ -54,11 +59,19 @@ export default function FeedView() {
   });
 
   const { data: baselines } = useQuery({
-    queryKey: ["publisher_baselines"],
+    queryKey: ["publisher_baselines", locale],
     queryFn: async () => {
+      const { data: localeFeeds } = await supabase
+        .from("feeds")
+        .select("publisher_name")
+        .eq("locale", locale)
+        .eq("is_active", true);
+      const localeNames = new Set((localeFeeds ?? []).map((f) => f.publisher_name));
+
       const { data, error } = await supabase.from("publisher_baselines").select("*");
       if (error) throw error;
-      return data as unknown as PublisherBaseline[];
+      const all = data as unknown as PublisherBaseline[];
+      return localeNames.size > 0 ? all.filter((b) => localeNames.has(b.publisher_name)) : all;
     },
   });
 
@@ -150,8 +163,8 @@ export default function FeedView() {
   return (
     <AppLayout>
       <SEOHead
-        title="Feed"
-        description="Real-time integrity analysis of ingested articles, grouped by publisher with grounding and integrity scores."
+        title={t("pageTitle")}
+        description={t("pageDescription")}
         path="/feed"
         jsonLd={collectionPageSchema({
           name: "Article Feed",
@@ -162,16 +175,16 @@ export default function FeedView() {
       <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6 px-4 sm:px-6">
         {/* Page header */}
         <div className="space-y-1">
-          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">Feed</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Real-time integrity analysis of ingested articles
-          </p>
+          <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
+            {t("pageTitle")}
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t("pageDescription")}</p>
         </div>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <Input
-            placeholder="Search articles..."
+            placeholder={t("searchArticles")}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -187,10 +200,10 @@ export default function FeedView() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="All publishers" />
+              <SelectValue placeholder={t("allPublishers")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Publishers</SelectItem>
+              <SelectItem value="all">{t("allPublishers")}</SelectItem>
               {publisherNames.map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
@@ -206,14 +219,12 @@ export default function FeedView() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[170px]">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder={t("allCategories")} />
             </SelectTrigger>
             <SelectContent>
               {CATEGORY_OPTIONS.map((category) => (
                 <SelectItem key={category} value={category}>
-                  {category === "all"
-                    ? "All categories"
-                    : category.charAt(0).toUpperCase() + category.slice(1)}
+                  {category === "all" ? t("allCategories") : tUI(`categories.${category}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -223,9 +234,12 @@ export default function FeedView() {
         {!isLoading && !!filtered?.length && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
             <span>
-              Showing publishers {(currentPage - 1) * PUBLISHERS_PER_PAGE + 1}-
-              {Math.min(currentPage * PUBLISHERS_PER_PAGE, totalPublisherGroups)} of{" "}
-              {totalPublisherGroups}
+              {tUI("pagination.showingRange", {
+                entity: "publishers",
+                start: (currentPage - 1) * PUBLISHERS_PER_PAGE + 1,
+                end: Math.min(currentPage * PUBLISHERS_PER_PAGE, totalPublisherGroups),
+                total: totalPublisherGroups,
+              })}
             </span>
             {hasMultiplePages && (
               <div className="flex items-center gap-2">
@@ -235,10 +249,10 @@ export default function FeedView() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </Button>
                 <span className="font-mono text-[11px]">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"
@@ -246,7 +260,7 @@ export default function FeedView() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </Button>
               </div>
             )}
@@ -266,12 +280,12 @@ export default function FeedView() {
               {search || publisherFilter !== "all" ? "⊘" : "◉"}
             </div>
             <h2 className="text-base sm:text-lg font-semibold">
-              {search || publisherFilter !== "all" ? "No matching articles" : "No articles yet"}
+              {search || publisherFilter !== "all" ? t("noArticlesFiltered") : t("noArticlesYet")}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {search || publisherFilter !== "all"
-                ? "Try adjusting your search or filter."
-                : "Add RSS feeds in the admin panel to start ingesting articles."}
+                ? t("noArticlesFilteredHint")
+                : t("noArticlesYetHint")}
             </p>
           </div>
         ) : (
@@ -310,10 +324,10 @@ export default function FeedView() {
                               "border-strip-supported/30 text-strip-supported",
                           )}
                         >
-                          {category}
+                          {tUI(`categories.${category}`)}
                         </Badge>
                         <span className="text-[10px] text-muted-foreground shrink-0">
-                          {docs.length} article{docs.length !== 1 ? "s" : ""}
+                          {tUI("units.article", { count: docs.length })}
                         </span>
                         <div className="ml-auto flex items-center gap-1.5 shrink-0">
                           <IntegritySparkline points={getSparklinePoints(publisher)} />
@@ -326,7 +340,7 @@ export default function FeedView() {
                     <AccordionContent className="px-3 sm:px-4 pb-3 sm:pb-4 pt-0 space-y-3">
                       {/* Publisher summary */}
                       <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-1">
-                        Publisher Summary
+                        {t("publisherSummary")}
                       </h3>
                       <PublisherAnalysisCard
                         publisherName={publisher}
@@ -336,7 +350,7 @@ export default function FeedView() {
 
                       {/* Article list */}
                       <h3 className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider pt-2">
-                        Articles ({docs.length})
+                        {t("articles", { count: docs.length })}
                       </h3>
                       <div className="grid gap-2">
                         {docs.map((doc) => (
@@ -357,10 +371,10 @@ export default function FeedView() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </Button>
                 <span className="font-mono text-[11px] text-muted-foreground">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"
@@ -368,7 +382,7 @@ export default function FeedView() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </Button>
               </div>
             )}

@@ -9,10 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { SEOHead, organizationSchema, websiteSchema } from "@/lib/seo";
 import type { Document, PublisherBaseline } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { useTranslation } from '../i18n';
-import { formatNumber } from '../lib/format';
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "../i18n";
+import { formatNumber } from "../lib/format";
 
 function toBias(category: string): "left" | "center" | "right" {
   if (category === "lean-left" || category === "partisan-left") return "left";
@@ -21,17 +21,19 @@ function toBias(category: string): "left" | "center" | "right" {
 }
 
 export default function Landing() {
-  const { t } = useTranslation('pages');
+  const { t, i18n } = useTranslation("pages");
+  const locale = i18n.language;
   const navigate = useNavigate();
 
   // Live pulse counts
   const { data: articleCount, isError: articleError } = useQuery({
-    queryKey: ["pulse-articles"],
+    queryKey: ["pulse-articles", locale],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count } = await (supabase as any)
         .from("documents")
-        .select("*", { count: "exact", head: true })
-        .eq("pipeline_status", "aggregated");
+        .select("*, feeds!inner(*)", { count: "exact", head: true })
+        .eq("pipeline_status", "aggregated")
+        .eq("feeds.locale", locale);
       return count ?? 0;
     },
   });
@@ -48,19 +50,20 @@ export default function Landing() {
   });
 
   const { data: sourceCount, isError: sourceError } = useQuery({
-    queryKey: ["pulse-sources"],
+    queryKey: ["pulse-sources", locale],
     queryFn: async () => {
       const { count } = await supabase
         .from("feeds")
         .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .eq("locale", locale);
       return count ?? 0;
     },
   });
 
   // Top stories (7 days)
   const { data: topStories, isLoading: storiesLoading } = useQuery({
-    queryKey: ["digest-stories"],
+    queryKey: ["digest-stories", locale],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
@@ -77,8 +80,9 @@ export default function Landing() {
       const eventIds = events.map((e: any) => e.id);
       const { data: docs } = await (supabase as any)
         .from("documents")
-        .select("*, feeds(*)")
-        .in("event_id", eventIds);
+        .select("*, feeds!inner(*)")
+        .in("event_id", eventIds)
+        .eq("feeds.locale", locale);
 
       const docsByEvent = new Map<string, Document[]>();
       for (const doc of (docs ?? []) as unknown as Document[]) {
@@ -99,30 +103,42 @@ export default function Landing() {
 
   // Publisher rankings (7d)
   const { data: baselines, isLoading: baselinesLoading } = useQuery({
-    queryKey: ["digest-baselines"],
+    queryKey: ["digest-baselines", locale],
     queryFn: async () => {
+      // Get publisher names for the current locale
+      const { data: localeFeeds } = await supabase
+        .from("feeds")
+        .select("publisher_name")
+        .eq("locale", locale)
+        .eq("is_active", true);
+      const localePublishers = new Set((localeFeeds ?? []).map((f) => f.publisher_name));
+
       const { data, error } = await supabase
         .from("publisher_baselines")
         .select("*")
         .eq("period", "7d")
         .order("avg_integrity_score", { ascending: false });
       if (error) throw error;
-      return data as unknown as PublisherBaseline[];
+      const all = data as unknown as PublisherBaseline[];
+      return localePublishers.size > 0
+        ? all.filter((b) => localePublishers.has(b.publisher_name))
+        : all;
     },
   });
 
   // Best & worst articles (7d)
   const { data: topArticles } = useQuery({
-    queryKey: ["digest-top-articles"],
+    queryKey: ["digest-top-articles", locale],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("documents")
         .select(
-          "id, title, integrity_score, grounding_score, strip, feeds(publisher_name, source_category)",
+          "id, title, integrity_score, grounding_score, strip, feeds!inner(publisher_name, source_category)",
         )
         .eq("pipeline_status", "aggregated")
         .gte("published_at", weekAgo)
+        .eq("feeds.locale", locale)
         .order("integrity_score", { ascending: false })
         .limit(3);
       return (data ?? []) as unknown as (Pick<
@@ -133,17 +149,18 @@ export default function Landing() {
   });
 
   const { data: bottomArticles } = useQuery({
-    queryKey: ["digest-bottom-articles"],
+    queryKey: ["digest-bottom-articles", locale],
     queryFn: async () => {
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("documents")
         .select(
-          "id, title, integrity_score, grounding_score, strip, feeds(publisher_name, source_category)",
+          "id, title, integrity_score, grounding_score, strip, feeds!inner(publisher_name, source_category)",
         )
         .eq("pipeline_status", "aggregated")
         .gte("published_at", weekAgo)
         .not("integrity_score", "is", null)
+        .eq("feeds.locale", locale)
         .order("integrity_score", { ascending: true })
         .limit(3);
       return (data ?? []) as unknown as (Pick<
@@ -169,28 +186,28 @@ export default function Landing() {
   const isLoading = storiesLoading || baselinesLoading;
 
   const pulseItems = [
-    { label: t('landing.articlesAnalyzed'), value: articleCount, icon: "◉" },
-    { label: t('landing.storiesTracked'), value: storyCount, icon: "◫" },
-    { label: t('landing.activeSources'), value: sourceCount, icon: "⚙" },
+    { label: t("landing.articlesAnalyzed"), value: articleCount, icon: "◉" },
+    { label: t("landing.storiesTracked"), value: storyCount, icon: "◫" },
+    { label: t("landing.activeSources"), value: sourceCount, icon: "⚙" },
   ];
 
   const steps = [
     {
       step: "1",
-      title: t('landing.steps.collect.title'),
-      description: t('landing.steps.collect.description'),
+      title: t("landing.steps.collect.title"),
+      description: t("landing.steps.collect.description"),
       color: "bg-strip-supported",
     },
     {
       step: "2",
-      title: t('landing.steps.analyze.title'),
-      description: t('landing.steps.analyze.description'),
+      title: t("landing.steps.analyze.title"),
+      description: t("landing.steps.analyze.description"),
       color: "bg-strip-opinion",
     },
     {
       step: "3",
-      title: t('landing.steps.compare.title'),
-      description: t('landing.steps.compare.description'),
+      title: t("landing.steps.compare.title"),
+      description: t("landing.steps.compare.description"),
       color: "bg-strip-mixed",
     },
   ];
@@ -198,8 +215,8 @@ export default function Landing() {
   return (
     <AppLayout>
       <SEOHead
-        title={t('landing.title')}
-        description={t('landing.description')}
+        title={t("landing.title")}
+        description={t("landing.description")}
         path="/"
         jsonLd={[organizationSchema(), websiteSchema()]}
       />
@@ -220,17 +237,17 @@ export default function Landing() {
             ))}
           </div>
           <h1 className="text-2xl sm:text-4xl font-mono font-bold tracking-tight">
-            {t('landing.heroTitle')}
+            {t("landing.heroTitle")}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
-            {t('landing.heroDescription')}
+            {t("landing.heroDescription")}
           </p>
         </section>
 
         {/* Error banner */}
         {hasError && (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-xs text-destructive">
-            {t('landing.errorBanner')}
+            {t("landing.errorBanner")}
           </div>
         )}
 
@@ -242,7 +259,7 @@ export default function Landing() {
                 <CardContent className="p-4 sm:p-6 text-center space-y-1">
                   <div className="text-2xl">{item.icon}</div>
                   <div className="text-2xl sm:text-3xl font-mono font-bold">
-                    {item.value != null ? formatNumber(item.value) : "—"}
+                    {item.value != null ? formatNumber(item.value) : t("landing.emDash")}
                   </div>
                   <div className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider">
                     {item.label}
@@ -259,19 +276,19 @@ export default function Landing() {
             to="/leaderboard"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            {t('landing.quickLinks.leaderboard')}
+            {t("landing.quickLinks.leaderboard")}
           </Link>
           <Link
             to="/publishers"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            {t('landing.quickLinks.publishers')}
+            {t("landing.quickLinks.publishers")}
           </Link>
           <Link
             to="/claims"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            {t('landing.quickLinks.trendingClaims')}
+            {t("landing.quickLinks.trendingClaims")}
           </Link>
         </section>
 
@@ -288,10 +305,10 @@ export default function Landing() {
               <section className="pb-10 sm:pb-14 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    {t('landing.topStories')}
+                    {t("landing.topStories")}
                   </h2>
                   <Link to="/stories" className="text-xs text-primary hover:underline font-medium">
-                    {t('landing.viewAllStories')}
+                    {t("landing.viewAllStories")}
                   </Link>
                 </div>
                 <div className="space-y-3">
@@ -329,7 +346,7 @@ export default function Landing() {
                             )}
                             <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-[10px] font-mono text-muted-foreground">
-                                {t('landing.sources', { count: story.documents.length })}
+                                {t("landing.sources", { count: story.documents.length })}
                               </span>
                               <BiasBar
                                 left={left}
@@ -353,11 +370,9 @@ export default function Landing() {
             {blindspotStories.length > 0 && (
               <section className="pb-10 sm:pb-14 space-y-3">
                 <h2 className="text-sm font-mono font-semibold text-strip-contradicted uppercase tracking-wider">
-                  {t('landing.coverageBlindspots')}
+                  {t("landing.coverageBlindspots")}
                 </h2>
-                <p className="text-xs text-muted-foreground">
-                  {t('landing.blindspotDescription')}
-                </p>
+                <p className="text-xs text-muted-foreground">{t("landing.blindspotDescription")}</p>
                 <div className="space-y-2">
                   {blindspotStories.map((story) => {
                     let left = 0;
@@ -378,7 +393,7 @@ export default function Landing() {
                                 {story.title}
                               </h3>
                               <span className="text-[10px] text-muted-foreground font-mono">
-                                {t('landing.sources', { count: story.documents.length })}
+                                {t("landing.sources", { count: story.documents.length })}
                               </span>
                             </div>
                             <BlindspotBadge left={left} center={center} right={right} />
@@ -396,13 +411,13 @@ export default function Landing() {
               <section className="pb-10 sm:pb-14 space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    {t('landing.publisherRankings')}
+                    {t("landing.publisherRankings")}
                   </h2>
                   <Link
                     to="/leaderboard"
                     className="text-xs text-primary hover:underline font-medium"
                   >
-                    {t('landing.viewFullLeaderboard')}
+                    {t("landing.viewFullLeaderboard")}
                   </Link>
                 </div>
                 <Card>
@@ -429,8 +444,16 @@ export default function Landing() {
                           <span className="flex-1 text-xs sm:text-sm font-medium truncate">
                             {b.publisher_name}
                           </span>
-                          <ScoreBadge label="G" labelKey="grounding" score={b.avg_grounding_score} />
-                          <ScoreBadge label="I" labelKey="integrity" score={b.avg_integrity_score} />
+                          <ScoreBadge
+                            label="G"
+                            labelKey="grounding"
+                            score={b.avg_grounding_score}
+                          />
+                          <ScoreBadge
+                            label="I"
+                            labelKey="integrity"
+                            score={b.avg_integrity_score}
+                          />
                           <span className="text-[10px] text-muted-foreground font-mono w-12 text-right">
                             {b.document_count}
                           </span>
@@ -447,7 +470,7 @@ export default function Landing() {
               {topArticles && topArticles.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-mono font-semibold text-strip-supported uppercase tracking-wider">
-                    {t('landing.mostGroundedArticles')}
+                    {t("landing.mostGroundedArticles")}
                   </h2>
                   <div className="space-y-2">
                     {topArticles.map((a) => (
@@ -455,7 +478,7 @@ export default function Landing() {
                         <Card className="hover:shadow-md transition-all hover:border-primary/20">
                           <CardContent className="p-3 space-y-1.5">
                             <h3 className="text-xs font-semibold line-clamp-2">
-                              {a.title ?? t('landing.untitled')}
+                              {a.title ?? t("landing.untitled")}
                             </h3>
                             <StripSummaryBar cells={a.strip ?? []} />
                             <div className="flex items-center gap-2">
@@ -472,7 +495,12 @@ export default function Landing() {
                               >
                                 {a.feeds?.publisher_name}
                               </button>
-                              <ScoreBadge label="I" labelKey="integrity" score={a.integrity_score} className="ml-auto" />
+                              <ScoreBadge
+                                label="I"
+                                labelKey="integrity"
+                                score={a.integrity_score}
+                                className="ml-auto"
+                              />
                             </div>
                           </CardContent>
                         </Card>
@@ -485,7 +513,7 @@ export default function Landing() {
               {bottomArticles && bottomArticles.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-mono font-semibold text-strip-contradicted uppercase tracking-wider">
-                    {t('landing.leastGroundedArticles')}
+                    {t("landing.leastGroundedArticles")}
                   </h2>
                   <div className="space-y-2">
                     {bottomArticles.map((a) => (
@@ -493,7 +521,7 @@ export default function Landing() {
                         <Card className="hover:shadow-md transition-all hover:border-primary/20">
                           <CardContent className="p-3 space-y-1.5">
                             <h3 className="text-xs font-semibold line-clamp-2">
-                              {a.title ?? t('landing.untitled')}
+                              {a.title ?? t("landing.untitled")}
                             </h3>
                             <StripSummaryBar cells={a.strip ?? []} />
                             <div className="flex items-center gap-2">
@@ -510,7 +538,12 @@ export default function Landing() {
                               >
                                 {a.feeds?.publisher_name}
                               </button>
-                              <ScoreBadge label="I" labelKey="integrity" score={a.integrity_score} className="ml-auto" />
+                              <ScoreBadge
+                                label="I"
+                                labelKey="integrity"
+                                score={a.integrity_score}
+                                className="ml-auto"
+                              />
                             </div>
                           </CardContent>
                         </Card>
@@ -525,7 +558,9 @@ export default function Landing() {
 
         {/* How It Works */}
         <section className="pb-12 sm:pb-20 space-y-4">
-          <h2 className="text-lg sm:text-xl font-mono font-semibold text-center">{t('landing.howItWorks')}</h2>
+          <h2 className="text-lg sm:text-xl font-mono font-semibold text-center">
+            {t("landing.howItWorks")}
+          </h2>
           <div className="grid sm:grid-cols-3 gap-4">
             {steps.map((s) => (
               <Card key={s.step}>

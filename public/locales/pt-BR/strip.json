@@ -1,0 +1,129 @@
+{
+  "scoreLabels": {
+    "grounding": "Fundamentação",
+    "integrity": "Integridade",
+    "avgGrounding": "Fundamentação Média",
+    "avgIntegrity": "Integridade Média",
+    "eventGrounding": "Fundamentação do Evento",
+    "eventIntegrity": "Integridade do Evento",
+    "claimGrounding": "Fundamentação da alegação",
+    "factuality": "Factualidade",
+    "sourcingQuality": "Qualidade das fontes",
+    "editorialization": "Editorialização"
+  },
+  "scoreDescriptions": {
+    "grounding": "Reflete o quão bem a cobertura é fundamentada em fontes e referências verificáveis.",
+    "integrity": "Combina indicadores de precisão, fontes e viés em uma única faixa de integridade.",
+    "avgGrounding": "Pontuação média de fundamentação calculada sobre o conjunto de documentos em foco.",
+    "avgIntegrity": "Pontuação média de integridade calculada sobre o conjunto de documentos em foco.",
+    "eventGrounding": "Pontuação média de fundamentação no cluster de eventos.",
+    "eventIntegrity": "Pontuação média de integridade no cluster de eventos.",
+    "claimGrounding": "Mostra como as alegações resolvidas dentro do cluster de artigos se alinham com vereditos apoiados, contestados ou mistos.",
+    "factuality": "Mede o quão baseada em fatos a cobertura é em relação às evidências disponíveis.",
+    "sourcingQuality": "Avalia a transparência e reputação das fontes citadas.",
+    "editorialization": "Destaca o grau de enquadramento opinativo versus reportagem direta."
+  },
+  "lowSample": "Amostra pequena",
+  "lowSampleWarning": "Amostra pequena",
+  "lowSampleTooltip": "Menos de 20 documentos estavam disponíveis para este intervalo; trate a pontuação como orientativa.",
+  "segmentLabels": {
+    "SUPPORTED": "Confirmado",
+    "CONTRADICTED": "Contestado",
+    "MIXED": "Misto",
+    "UNKNOWN": "Desconhecido",
+    "NOT_CHECKABLE": "Não verificável",
+    "OPINION": "Opinião",
+    "NEUTRAL": "Neutro",
+    "OTHER": "Outro"
+  },
+  "segmentDescriptions": {
+    "SUPPORTED": "Alegação respaldada por evidência independente",
+    "CONTRADICTED": "Evidência contradiz esta alegação",
+    "MIXED": "Parte da evidência apoia, parte contradiz",
+    "UNKNOWN": "Evidência insuficiente encontrada",
+    "OPINION": "Opinião editorial ou análise",
+    "NOT_CHECKABLE": "Não pode ser verificado contra evidências",
+    "NEUTRAL": "Informativo, não é uma alegação factual",
+    "OTHER": "Não se encaixa em outras categorias"
+  },
+  "tierNames": {
+    "T1": "Fonte Primária",
+    "T2": "Agência de Notícias",
+    "T3": "Referência",
+    "T4": "Organização de Notícias Estabelecida",
+    "T5": "Corpus Interno"
+  },
+  "riskLevelNames": {
+    "LOW": "Baixo",
+    "MEDIUM": "Médio",
+    "HIGH": "Alto",
+    "CRITICAL": "Crítico"
+  },
+  "gapReasonNames": {
+    "NO_RELEVANT_EVIDENCE": "Nenhuma evidência relevante encontrada",
+    "CIRCULAR_ONLY": "Apenas evidência circular/autorreferencial",
+    "EVIDENCE_CONFLICT": "Fontes em conflito",
+    "INSUFFICIENT_TIER_FOR_RISK": "Nível de evidência insuficiente para o risco da alegação",
+    "PRIMARY_SOURCE_NOT_RETRIEVED": "Fonte primária não recuperada",
+    "NEUTRAL_ONLY": "Evidência encontrada mas inconclusiva",
+    "WEAK_SUPPORT": "Evidência de apoio muito fraca",
+    "WEAK_CONTRADICTION": "Evidência contraditória muito fraca",
+    "WEAK_CONFLICT": "Evidência conflitante mas nenhum lado forte o suficiente"
+  },
+  "legend": {
+    "dialogTitle": "Como Ler os Resultados",
+    "theStrip": "A Faixa",
+    "stripExplanation": "A barra colorida em cada artigo representa seus segmentos, da esquerda para a direita. Cada célula é colorida pelo seu rótulo de alinhamento com evidências:",
+    "scoresSection": "Pontuações",
+    "limitationsSection": "Limitações",
+    "limitationsText": "Todos os resultados refletem o alinhamento entre alegações extraídas e evidências recuperadas no momento da análise. Não constituem julgamentos definitivos de verdade. As pontuações são sinais estatísticos probabilísticos, não determinações editoriais ou legais.",
+    "groundingShort": "0–100 — Proporção de segmentos respaldados por evidência real",
+    "groundingDetail": "Mede a cobertura de evidências: qual fração dos segmentos tem vereditos confirmados, contestados ou mistos. Segmentos sem evidência (Desconhecido) reduzem a pontuação.",
+    "integrityShort": "0–100 — Alinhamento ponderado de evidências entre segmentos",
+    "integrityDetail": "Segmentos confirmados contribuem positivamente, segmentos contestados recebem penalidade de 1,2×, segmentos mistos contribuem levemente. Deliberadamente conservador — contradições superam confirmações.",
+    "sentimentShort": "−1 a +1 — Tom emocional da linguagem",
+    "sentimentDetail": "Agregado da análise por segmento. Apresentado como contexto suplementar e não faz parte dos cálculos de fundamentação ou integridade."
+  },
+  "sentiment": {
+    "label": "Sentimento",
+    "positive": "positivo",
+    "negative": "negativo",
+    "neutral": "neutro",
+    "pos": "Pos",
+    "neg": "Neg",
+    "neu": "Neu"
+  },
+  "ideology": {
+    "label": "Ideologia",
+    "insufficientSignal": "sinal insuficiente",
+    "insufficientSignalTooltip": "Não foram extraídas posições politicamente relevantes suficientes para calcular uma pontuação ideológica confiável.",
+    "noData": "Nenhum dado de ideologia disponível para este artigo.",
+    "economic": "Econômico",
+    "social": "Social",
+    "econ": "Econ",
+    "method": "Método",
+    "stances": "Posições",
+    "propositions": "proposições",
+    "confidence": "Confiança",
+    "axisLabels": {
+      "strongLeft": "Esquerda Forte",
+      "leftLean": "Inclinação Esquerda",
+      "center": "Centro",
+      "rightLean": "Inclinação Direita",
+      "strongRight": "Direita Forte",
+      "strongProgressive": "Progressista Forte",
+      "progressiveLean": "Inclinação Progressista",
+      "strongConservative": "Conservador Forte",
+      "conservativeLean": "Inclinação Conservadora"
+    }
+  },
+  "bias": {
+    "left": "Esquerda",
+    "center": "Centro",
+    "right": "Direita",
+    "leftLeaning": "Tendência Esquerda",
+    "rightLeaning": "Tendência Direita",
+    "blindspotLeft": "Ponto cego para a Esquerda",
+    "blindspotRight": "Ponto cego para a Direita"
+  }
+}

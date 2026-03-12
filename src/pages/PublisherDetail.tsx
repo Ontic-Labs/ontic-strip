@@ -6,7 +6,6 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { SEOHead } from "@/lib/seo";
-import { STRIP_LABEL_NAMES } from "@/lib/types";
 import type { Document, PublisherBaseline } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
@@ -25,6 +24,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { useTranslation } from "../i18n";
 
 const PIE_COLORS: Record<string, string> = {
   SUPPORTED: "hsl(145, 63%, 42%)",
@@ -38,6 +38,9 @@ const PIE_COLORS: Record<string, string> = {
 };
 
 export default function PublisherDetail() {
+  const { t } = useTranslation("pages");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
   const { name } = useParams<{ name: string }>();
   const decodedName = decodeURIComponent(name ?? "");
 
@@ -78,7 +81,7 @@ export default function PublisherDetail() {
     ? Object.entries(b7.segment_label_distribution)
         .filter(([, v]) => (v as number) > 0)
         .map(([key, value]) => ({
-          name: STRIP_LABEL_NAMES[key as keyof typeof STRIP_LABEL_NAMES] ?? key,
+          name: tStrip(`segmentLabels.${key}`),
           value: value as number,
           fill: PIE_COLORS[key] ?? "hsl(220, 10%, 72%)",
         }))
@@ -148,13 +151,13 @@ export default function PublisherDetail() {
           to="/publishers"
           className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          ← Back to Publishers
+          {t("publisherDetail.backToPublishers")}
         </Link>
 
         <div>
           <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">{decodedName}</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Publisher integrity profile
+            {t("publisherDetail.integrityProfile")}
           </p>
         </div>
 
@@ -172,22 +175,24 @@ export default function PublisherDetail() {
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                  <CardTitle className="text-xs sm:text-sm font-mono">7-Day Baseline</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-mono">
+                    {t("publisherDetail.baseline7d")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center">
-                  <ScoreBadge label="Grounding" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
-                  <ScoreBadge label="Integrity" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
-                  <ScoreBadge label="Factuality" labelKey="factuality" score={b7?.avg_factuality_score ?? null} />
+                  <ScoreBadge labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
+                  <ScoreBadge labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
+                  <ScoreBadge labelKey="factuality" score={b7?.avg_factuality_score ?? null} />
                   <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
-                    {b7?.document_count ?? 0} articles
+                    {b7?.document_count ?? 0} {tUI("units.articles")}
                   </span>
                 </CardContent>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center pt-0">
-                  <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={b7?.avg_sourcing_quality ?? null} />
-                  <ScoreBadge label="Editorialization" labelKey="editorialization" score={b7?.avg_one_sidedness ?? null} />
+                  <ScoreBadge labelKey="sourcingQuality" score={b7?.avg_sourcing_quality ?? null} />
+                  <ScoreBadge labelKey="editorialization" score={b7?.avg_one_sidedness ?? null} />
                   {b7?.avg_ideology_economic != null && (
                     <div className="flex items-center gap-1.5 text-xs">
-                      <span className="text-muted-foreground">Ideology</span>
+                      <span className="text-muted-foreground">{tStrip("ideology.label")}</span>
                       <span className="font-mono text-muted-foreground">
                         E:{b7.avg_ideology_economic > 0 ? "+" : ""}
                         {b7.avg_ideology_economic.toFixed(1)} S:
@@ -202,22 +207,27 @@ export default function PublisherDetail() {
               </Card>
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                  <CardTitle className="text-xs sm:text-sm font-mono">30-Day Baseline</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-mono">
+                    {t("publisherDetail.baseline30d")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center">
-                  <ScoreBadge label="Grounding" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
-                  <ScoreBadge label="Integrity" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
-                  <ScoreBadge label="Factuality" labelKey="factuality" score={b30?.avg_factuality_score ?? null} />
+                  <ScoreBadge labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
+                  <ScoreBadge labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
+                  <ScoreBadge labelKey="factuality" score={b30?.avg_factuality_score ?? null} />
                   <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
-                    {b30?.document_count ?? 0} articles
+                    {b30?.document_count ?? 0} {tUI("units.articles")}
                   </span>
                 </CardContent>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center pt-0">
-                  <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={b30?.avg_sourcing_quality ?? null} />
-                  <ScoreBadge label="Editorialization" labelKey="editorialization" score={b30?.avg_one_sidedness ?? null} />
+                  <ScoreBadge
+                    labelKey="sourcingQuality"
+                    score={b30?.avg_sourcing_quality ?? null}
+                  />
+                  <ScoreBadge labelKey="editorialization" score={b30?.avg_one_sidedness ?? null} />
                   {b30?.avg_ideology_economic != null && (
                     <div className="flex items-center gap-1.5 text-xs">
-                      <span className="text-muted-foreground">Ideology</span>
+                      <span className="text-muted-foreground">{tStrip("ideology.label")}</span>
                       <span className="font-mono text-muted-foreground">
                         E:{b30.avg_ideology_economic > 0 ? "+" : ""}
                         {b30.avg_ideology_economic.toFixed(1)} S:
@@ -237,7 +247,7 @@ export default function PublisherDetail() {
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
                   <CardTitle className="text-xs sm:text-sm font-mono">
-                    Segment Label Distribution (7d)
+                    {t("publisherDetail.segmentDistribution7d")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
@@ -262,7 +272,9 @@ export default function PublisherDetail() {
             {trendData.length >= 2 && (
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                  <CardTitle className="text-xs sm:text-sm font-mono">Integrity Trend</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-mono">
+                    {t("publisherDetail.integrityTrend")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                   <ResponsiveContainer width="100%" height={200}>
@@ -280,13 +292,17 @@ export default function PublisherDetail() {
                           const d = payload[0].payload;
                           return (
                             <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-sm space-y-1">
-                              <div className="font-mono font-semibold">Week of {d.week}</div>
+                              <div className="font-mono font-semibold">
+                                {t("publisherDetail.weekOf", { week: d.week })}
+                              </div>
                               <div>
-                                Integrity: <span className="font-mono">{d.integrity}%</span>
+                                {tStrip("scoreLabels.integrity")}:{" "}
+                                <span className="font-mono">{d.integrity}%</span>
                               </div>
                               {d.grounding != null && (
                                 <div>
-                                  Grounding: <span className="font-mono">{d.grounding}%</span>
+                                  {tStrip("scoreLabels.grounding")}:{" "}
+                                  <span className="font-mono">{d.grounding}%</span>
                                 </div>
                               )}
                               <div className="text-muted-foreground">
@@ -302,7 +318,7 @@ export default function PublisherDetail() {
                         stroke="hsl(145, 63%, 42%)"
                         strokeWidth={2}
                         dot={{ r: 3 }}
-                        name="Integrity"
+                        name={tStrip("scoreLabels.integrity")}
                       />
                       <Line
                         type="monotone"
@@ -310,7 +326,7 @@ export default function PublisherDetail() {
                         stroke="hsl(217, 91%, 60%)"
                         strokeWidth={2}
                         dot={{ r: 3 }}
-                        name="Grounding"
+                        name={tStrip("scoreLabels.grounding")}
                         strokeDasharray="4 4"
                       />
                     </LineChart>
@@ -318,11 +334,11 @@ export default function PublisherDetail() {
                   <div className="flex items-center gap-4 mt-2 text-[10px] text-muted-foreground font-mono">
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-0.5 bg-strip-supported rounded" />
-                      <span>Integrity</span>
+                      <span>{tStrip("scoreLabels.integrity")}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-3 h-0.5 bg-primary rounded border-dashed" />
-                      <span>Grounding</span>
+                      <span>{tStrip("scoreLabels.grounding")}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -333,9 +349,11 @@ export default function PublisherDetail() {
             {ideologyData.length >= 1 && (
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                  <CardTitle className="text-xs sm:text-sm font-mono">Ideology Map</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-mono">
+                    {t("publisherDetail.ideologyMap")}
+                  </CardTitle>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Each dot is one article. Axes range from −10 to +10.
+                    {t("publisherDetail.ideologyMapHint")}
                   </p>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
@@ -349,7 +367,7 @@ export default function PublisherDetail() {
                         ticks={[-10, -5, 0, 5, 10]}
                         tick={{ fontSize: 10 }}
                         label={{
-                          value: "Economic ← Left · Right →",
+                          value: t("compare.economicAxis"),
                           position: "bottom",
                           fontSize: 10,
                           className: "fill-muted-foreground",
@@ -363,7 +381,7 @@ export default function PublisherDetail() {
                         tick={{ fontSize: 10 }}
                         width={30}
                         label={{
-                          value: "← Progressive · Conservative →",
+                          value: t("compare.socialAxis"),
                           angle: -90,
                           position: "insideLeft",
                           fontSize: 10,
@@ -382,14 +400,14 @@ export default function PublisherDetail() {
                             <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-sm space-y-0.5 max-w-[220px]">
                               <div className="font-mono font-semibold truncate">{d.title}</div>
                               <div>
-                                Economic:{" "}
+                                {tStrip("ideology.economic")}:{" "}
                                 <span className="font-mono">
                                   {d.economic > 0 ? "+" : ""}
                                   {d.economic}
                                 </span>
                               </div>
                               <div>
-                                Social:{" "}
+                                {tStrip("ideology.social")}:{" "}
                                 <span className="font-mono">
                                   {d.social > 0 ? "+" : ""}
                                   {d.social}
@@ -411,7 +429,7 @@ export default function PublisherDetail() {
         {/* Recent articles */}
         <div className="space-y-3">
           <h2 className="text-xs sm:text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-            Recent Articles
+            {t("publisherDetail.recentArticles")}
           </h2>
           {docsLoading ? (
             <div className="space-y-2">
@@ -422,7 +440,9 @@ export default function PublisherDetail() {
           ) : documents?.length ? (
             documents.map((doc) => <ArticleCard key={doc.id} document={doc} />)
           ) : (
-            <p className="text-xs sm:text-sm text-muted-foreground">No articles yet.</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              {t("publisherDetail.noArticlesYet")}
+            </p>
           )}
         </div>
       </div>

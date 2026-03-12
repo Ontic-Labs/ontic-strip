@@ -5,11 +5,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { BASE_URL, SEOHead, collectionPageSchema } from "@/lib/seo";
 import type { GapReason, RiskLevel, VeracityLabel } from "@/lib/types";
-import { GAP_REASON_NAMES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 const VERACITY_STYLES: Record<VeracityLabel, string> = {
   SUPPORTED: "border-strip-supported text-strip-supported",
@@ -17,14 +17,6 @@ const VERACITY_STYLES: Record<VeracityLabel, string> = {
   MIXED: "border-strip-mixed text-strip-mixed",
   UNKNOWN: "border-strip-unknown text-strip-unknown",
   NOT_CHECKABLE: "border-muted-foreground text-muted-foreground",
-};
-
-const VERACITY_NAMES: Record<VeracityLabel, string> = {
-  SUPPORTED: "Supported",
-  CONTRADICTED: "Disputed",
-  MIXED: "Mixed",
-  UNKNOWN: "Unknown",
-  NOT_CHECKABLE: "Not Checkable",
 };
 
 type FilterLabel = "all" | VeracityLabel;
@@ -46,6 +38,9 @@ interface TrendingClaim {
 }
 
 export default function TrendingClaims() {
+  const { t } = useTranslation("pages");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
   const [filter, setFilter] = useState<FilterLabel>("all");
   const [page, setPage] = useState(1);
 
@@ -105,10 +100,10 @@ export default function TrendingClaims() {
       <div className="container py-4 sm:py-6 space-y-4 sm:space-y-6 px-4 sm:px-6 max-w-3xl">
         <div className="space-y-1">
           <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
-            Trending Claims
+            {t("trendingClaims.title")}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Claims extracted and analyzed from this week's articles
+            {t("trendingClaims.description")}
           </p>
         </div>
 
@@ -127,7 +122,7 @@ export default function TrendingClaims() {
                 : "bg-muted text-muted-foreground hover:bg-accent",
             )}
           >
-            All {claims?.length ? `(${claims.length})` : ""}
+            {tUI("categories.all")} {claims?.length ? `(${claims.length})` : ""}
           </button>
           {(["SUPPORTED", "CONTRADICTED", "MIXED", "UNKNOWN"] as VeracityLabel[]).map((label) => (
             <button
@@ -144,7 +139,8 @@ export default function TrendingClaims() {
                   : "bg-muted text-muted-foreground hover:bg-accent",
               )}
             >
-              {VERACITY_NAMES[label]} {veracityCounts[label] ? `(${veracityCounts[label]})` : ""}
+              {tStrip(`segmentLabels.${label}`)}{" "}
+              {veracityCounts[label] ? `(${veracityCounts[label]})` : ""}
             </button>
           ))}
         </div>
@@ -161,16 +157,22 @@ export default function TrendingClaims() {
             <div className="text-3xl">⊘</div>
             <p className="text-sm text-muted-foreground">
               {filter === "all"
-                ? "No claims from this week yet."
-                : `No ${VERACITY_NAMES[filter as VeracityLabel].toLowerCase()} claims this week.`}
+                ? t("trendingClaims.noClaimsAll")
+                : t("trendingClaims.noClaimsFiltered", {
+                    label: tStrip(`segmentLabels.${filter}`).toLowerCase(),
+                  })}
             </p>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing claims {(currentPage - 1) * CLAIMS_PER_PAGE + 1}-
-                {Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims)} of {totalClaims}
+                {tUI("pagination.showingRange", {
+                  entity: "claims",
+                  start: (currentPage - 1) * CLAIMS_PER_PAGE + 1,
+                  end: Math.min(currentPage * CLAIMS_PER_PAGE, totalClaims),
+                  total: totalClaims,
+                })}
               </span>
               {hasMultiplePages && (
                 <div className="flex items-center gap-2">
@@ -180,10 +182,10 @@ export default function TrendingClaims() {
                     disabled={currentPage <= 1}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Previous
+                    {tUI("pagination.previous")}
                   </button>
                   <span className="font-mono text-[11px]">
-                    Page {currentPage} / {totalPages}
+                    {tUI("pagination.page", { current: currentPage, total: totalPages })}
                   </span>
                   <button
                     type="button"
@@ -191,7 +193,7 @@ export default function TrendingClaims() {
                     disabled={currentPage >= totalPages}
                     className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                   >
-                    Next
+                    {tUI("pagination.next")}
                   </button>
                 </div>
               )}
@@ -212,17 +214,17 @@ export default function TrendingClaims() {
                               VERACITY_STYLES[claim.veracity_label],
                             )}
                           >
-                            {VERACITY_NAMES[claim.veracity_label]}
+                            {tStrip(`segmentLabels.${claim.veracity_label}`)}
                           </Badge>
                         )}
                         {claim.risk_level && claim.risk_level !== "LOW" && (
                           <span className="text-[10px] font-mono text-strip-mixed">
-                            {claim.risk_level} risk
+                            {tStrip(`riskLevelNames.${claim.risk_level}`)} {tUI("units.risk")}
                           </span>
                         )}
                         {claim.veracity_label === "UNKNOWN" && claim.gap_reason && (
                           <span className="text-[10px] font-mono text-muted-foreground italic">
-                            {GAP_REASON_NAMES[claim.gap_reason]}
+                            {tStrip(`gapReasonNames.${claim.gap_reason}`)}
                           </span>
                         )}
                         <span className="text-[10px] text-muted-foreground font-mono ml-auto truncate max-w-[200px]">
@@ -243,10 +245,10 @@ export default function TrendingClaims() {
                   disabled={currentPage <= 1}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </button>
                 <span className="font-mono text-[11px] text-muted-foreground">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   type="button"
@@ -254,7 +256,7 @@ export default function TrendingClaims() {
                   disabled={currentPage >= totalPages}
                   className="px-2.5 py-1 rounded border text-[11px] font-mono disabled:opacity-50"
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </button>
               </div>
             )}

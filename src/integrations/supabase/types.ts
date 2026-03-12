@@ -412,6 +412,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_polled_at: string | null
+          locale: string
           polling_interval_minutes: number
           publisher_name: string
           source_category: string
@@ -424,6 +425,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_polled_at?: string | null
+          locale?: string
           polling_interval_minutes?: number
           publisher_name: string
           source_category?: string
@@ -436,6 +438,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_polled_at?: string | null
+          locale?: string
           polling_interval_minutes?: number
           publisher_name?: string
           source_category?: string
@@ -927,6 +930,15 @@ export type Database = {
           document_updated: boolean
           synthesis_reset: boolean
         }[]
+      }
+      enqueue_graphile_stage_job: {
+        Args: {
+          p_attempt?: number
+          p_doc_id: string
+          p_stage: string
+          p_status_token: string
+        }
+        Returns: boolean
       }
       enqueue_stage_if_new: {
         Args: {

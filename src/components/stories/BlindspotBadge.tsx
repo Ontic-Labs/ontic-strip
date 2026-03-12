@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "../../i18n";
 
 interface BlindspotBadgeProps {
   left: number;
@@ -8,6 +9,7 @@ interface BlindspotBadgeProps {
 }
 
 export function BlindspotBadge({ left, center, right }: BlindspotBadgeProps) {
+  const { t } = useTranslation("strip");
   const total = left + center + right;
   if (total < 2) return null;
 
@@ -18,7 +20,7 @@ export function BlindspotBadge({ left, center, right }: BlindspotBadgeProps) {
         variant="outline"
         className={cn("text-[10px] font-mono border-bias-right text-bias-right")}
       >
-        Blindspot for the Left
+        {t("bias.blindspotLeft")}
       </Badge>
     );
   }
@@ -28,7 +30,7 @@ export function BlindspotBadge({ left, center, right }: BlindspotBadgeProps) {
         variant="outline"
         className={cn("text-[10px] font-mono border-bias-left text-bias-left")}
       >
-        Blindspot for the Right
+        {t("bias.blindspotRight")}
       </Badge>
     );
   }

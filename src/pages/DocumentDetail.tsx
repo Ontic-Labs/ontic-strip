@@ -18,28 +18,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { BASE_URL, SEOHead, newsArticleSchema } from "@/lib/seo";
-import {
-  GAP_REASON_NAMES,
-  RISK_LEVEL_NAMES,
-  STRIP_COLORS,
-  STRIP_LABEL_NAMES,
-  TIER_NAMES,
-} from "@/lib/types";
-import type {
-  Claim,
-  Document,
-  Evidence,
-  EvidenceTier,
-  GapReason,
-  RiskLevel,
-  Segment,
-  SegmentLabel,
-} from "@/lib/types";
+import { STRIP_COLORS } from "@/lib/types";
+import type { Claim, Document, Evidence, Segment, SegmentLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { Check, ClipboardCopy } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "../i18n";
 
 /** Small inline score bar for a single segment */
 function SegmentScoreBar({ claims }: { claims: Claim[] }) {
@@ -75,14 +61,7 @@ function SegmentScoreBar({ claims }: { claims: Claim[] }) {
 }
 
 /** Veracity badge with color coding */
-function VeracityBadge({ label }: { label: string }) {
-  const displayName: Record<string, string> = {
-    SUPPORTED: "Supported",
-    CONTRADICTED: "Disputed",
-    MIXED: "Mixed",
-    UNKNOWN: "Unknown",
-    NOT_CHECKABLE: "Not Checkable",
-  };
+function VeracityBadge({ label, tStrip }: { label: string; tStrip: (key: string) => string }) {
   const colorMap: Record<string, string> = {
     SUPPORTED: "bg-strip-supported/20 text-strip-supported border-strip-supported/30",
     CONTRADICTED: "bg-strip-contradicted/20 text-strip-contradicted border-strip-contradicted/30",
@@ -91,12 +70,14 @@ function VeracityBadge({ label }: { label: string }) {
   };
   return (
     <Badge variant="outline" className={cn("text-xs h-5 border", colorMap[label] || "")}>
-      {displayName[label] || label}
+      {tStrip(`segmentLabels.${label}`) || label}
     </Badge>
   );
 }
 
 export default function DocumentDetail() {
+  const { t: tStrip } = useTranslation("strip");
+  const { t: tPages } = useTranslation("pages");
   const { id } = useParams<{ id: string }>();
   const [expandedSegment, setExpandedSegment] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("segments");
@@ -181,7 +162,7 @@ export default function DocumentDetail() {
 
   // copyAllContent defined after articleInsights below
 
-  const publisherName = doc?.feeds?.publisher_name ?? "Unknown";
+  const publisherName = doc?.feeds?.publisher_name ?? tPages("documentDetail.unknownPublisher");
 
   const getClaimsForSegment = (segmentId: string) =>
     claims?.filter((c) => c.segment_id === segmentId) ?? [];
@@ -251,12 +232,12 @@ export default function DocumentDetail() {
 
     const confidenceBand =
       avgConfidence === null
-        ? "No confidence data"
+        ? "noConfidenceData"
         : avgConfidence >= 0.75
-          ? "High confidence band"
+          ? "highConfidenceBand"
           : avgConfidence >= 0.55
-            ? "Medium confidence band"
-            : "Low confidence band";
+            ? "mediumConfidenceBand"
+            : "lowConfidenceBand";
 
     const hasInsufficientEvidenceRisk = allClaims.some(
       (c) => c.gap_reason === "INSUFFICIENT_TIER_FOR_RISK",
@@ -325,7 +306,7 @@ export default function DocumentDetail() {
 
   const copyAllContent = useCallback(() => {
     if (!doc) return;
-    const pub = doc.feeds?.publisher_name ?? "Unknown";
+    const pub = doc.feeds?.publisher_name ?? tPages("documentDetail.unknownPublisher");
     const json = {
       document: {
         id: doc.id,
@@ -373,7 +354,7 @@ export default function DocumentDetail() {
           articleInsights.avgConfidence !== null
             ? Math.round(articleInsights.avgConfidence * 100)
             : null,
-        confidence_band: articleInsights.confidenceBand,
+        confidence_band: tPages(`documentDetail.${articleInsights.confidenceBand}`),
       },
       editorial_insight: doc.synthesis_text
         ? {
@@ -387,7 +368,7 @@ export default function DocumentDetail() {
         return {
           position: seg.position_index,
           label: seg.label,
-          label_name: seg.label ? STRIP_LABEL_NAMES[seg.label] : null,
+          label_name: seg.label ? tStrip(`segmentLabels.${seg.label}`) : null,
           classification: seg.classification,
           token_count: seg.token_count,
           text: seg.text_content.replace(/<!--[\s\S]*?-->/g, "").trim(),
@@ -414,7 +395,7 @@ export default function DocumentDetail() {
               },
               evidence: claimEv.map((ev) => ({
                 tier: ev.source_tier,
-                tier_name: TIER_NAMES[ev.source_tier as EvidenceTier],
+                tier_name: tStrip(`tierNames.${ev.source_tier}`),
                 nli_label: ev.nli_label,
                 nli_confidence: ev.nli_confidence,
                 similarity_score: ev.similarity_score,
@@ -447,10 +428,10 @@ export default function DocumentDetail() {
     };
     navigator.clipboard.writeText(JSON.stringify(json, null, 2)).then(() => {
       setCopied(true);
-      toast.success("Full analysis JSON copied to clipboard");
+      toast.success(tPages("documentDetail.copiedToClipboard"));
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [doc, segments, claims, evidence, relatedDocs, articleInsights]);
+  }, [doc, segments, claims, evidence, relatedDocs, articleInsights, tStrip, tPages]);
 
   const handleStripCellClick = useCallback((segmentId: string) => {
     setActiveTab("segments");
@@ -478,7 +459,7 @@ export default function DocumentDetail() {
       <AppLayout>
         <div className="container py-6 px-4 sm:px-6">
           <div className="h-96 flex items-center justify-center text-muted-foreground">
-            Loading...
+            {tPages("documentDetail.loading")}
           </div>
         </div>
       </AppLayout>
@@ -488,7 +469,7 @@ export default function DocumentDetail() {
   return (
     <AppLayout>
       <SEOHead
-        title={doc.title ?? "Document Analysis"}
+        title={doc.title ?? tPages("documentDetail.documentAnalysis")}
         description={
           doc.synthesis_text
             ? doc.synthesis_text.slice(0, 160).replace(/\n/g, " ")
@@ -497,7 +478,7 @@ export default function DocumentDetail() {
         path={`/document/${id}`}
         ogType="article"
         jsonLd={newsArticleSchema({
-          title: doc.title ?? "Untitled",
+          title: doc.title ?? tPages("documentDetail.untitled"),
           description: doc.synthesis_text?.slice(0, 200) ?? "",
           url: `${BASE_URL}/document/${id}`,
           publisherName,
@@ -515,20 +496,22 @@ export default function DocumentDetail() {
             to="/feed"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
-            ← Back to Feed
+            {tPages("documentDetail.backToFeed")}
           </Link>
           <button
             type="button"
             onClick={copyAllContent}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-md border border-transparent hover:border-border hover:bg-muted/50"
-            title="Copy full analysis to clipboard"
+            title={tPages("documentDetail.copyToClipboard")}
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-strip-supported" />
             ) : (
               <ClipboardCopy className="h-3.5 w-3.5" />
             )}
-            <span className="font-mono">{copied ? "Copied" : "Copy"}</span>
+            <span className="font-mono">
+              {copied ? tPages("documentDetail.copied") : tPages("documentDetail.copy")}
+            </span>
           </button>
         </div>
 
@@ -537,7 +520,7 @@ export default function DocumentDetail() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-semibold leading-snug">
-                {doc.title ?? "Untitled"}
+                {doc.title ?? tPages("documentDetail.untitled")}
               </h1>
               <div className="flex items-center gap-2.5 mt-2.5 flex-wrap">
                 <Link
@@ -563,18 +546,16 @@ export default function DocumentDetail() {
             onCellClick={(segId) => handleStripCellClick(segId)}
           />
           <p className="text-[11px] font-mono text-muted-foreground">
-            Click any strip cell to jump directly to its claims and evidence.
+            {tPages("documentDetail.stripCellHint")}
           </p>
           <div className="flex items-center gap-4 sm:gap-5 flex-wrap">
-            <ScoreBadge label="Grounding" labelKey="grounding" score={doc.grounding_score} />
+            <ScoreBadge labelKey="grounding" score={doc.grounding_score} />
             <ScoreBadge
-              label="Integrity"
               labelKey="integrity"
               score={doc.integrity_score}
               status={articleInsights.integrityLowSample ? "low_sample" : "ok"}
             />
             <ScoreBadge
-              label="Factuality"
               labelKey="factuality"
               score={doc.factuality_score}
               status={articleInsights.factualityLowSample ? "low_sample" : "ok"}
@@ -588,13 +569,12 @@ export default function DocumentDetail() {
           </div>
           <div className="flex items-center gap-4 sm:gap-5 flex-wrap">
             <ScoreBadge
-              label="Claim Grounding"
               labelKey="claimGrounding"
               score={articleInsights.claimGrounding}
               description={`${articleInsights.resolvedClaims}/${articleInsights.totalClaims} claims resolved to supported, disputed, or mixed verdicts.`}
             />
-            <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={doc.sourcing_quality} />
-            <ScoreBadge label="Editorialization" labelKey="editorialization" score={doc.one_sidedness} />
+            <ScoreBadge labelKey="sourcingQuality" score={doc.sourcing_quality} />
+            <ScoreBadge labelKey="editorialization" score={doc.one_sidedness} />
             <IdeologyBadge scores={doc.ideology_scores} />
           </div>
 
@@ -608,7 +588,9 @@ export default function DocumentDetail() {
                   : "border-muted-foreground/30",
               )}
             >
-              Unknown rate {Math.round(articleInsights.unknownRate * 100)}%
+              {tPages("documentDetail.unknownRate", {
+                pct: Math.round(articleInsights.unknownRate * 100),
+              })}
             </Badge>
             <Badge
               variant="outline"
@@ -619,7 +601,7 @@ export default function DocumentDetail() {
                   : "border-muted-foreground/30",
               )}
             >
-              {articleInsights.confidenceBand}
+              {tPages(`documentDetail.${articleInsights.confidenceBand}`)}
               {articleInsights.avgConfidence !== null
                 ? ` (${Math.round(articleInsights.avgConfidence * 100)}%)`
                 : ""}
@@ -629,7 +611,7 @@ export default function DocumentDetail() {
                 variant="outline"
                 className="text-[10px] h-5 border-strip-unknown/50 text-strip-unknown bg-strip-unknown/10"
               >
-                Insufficient high-tier evidence present
+                {tPages("documentDetail.insufficientHighTierEvidence")}
               </Badge>
             )}
           </div>
@@ -637,36 +619,46 @@ export default function DocumentDetail() {
           <Card className="border-dashed">
             <CardContent className="p-4 sm:p-5 space-y-3">
               <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                Why this score?
+                {tPages("documentDetail.whyThisScore")}
               </h2>
 
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                 <div className="rounded-md border p-2">
-                  <span className="text-muted-foreground block">Segment coverage</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.segmentCoverage")}
+                  </span>
                   <span className="font-mono text-foreground">
                     {articleInsights.coveredSegments}/{articleInsights.totalSegments || 0}
                   </span>
                 </div>
                 <div className="rounded-md border p-2">
-                  <span className="text-muted-foreground block">Claim coverage</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.claimCoverage")}
+                  </span>
                   <span className="font-mono text-foreground">
                     {articleInsights.resolvedClaims}/{articleInsights.totalClaims}
                   </span>
                 </div>
                 <div className="rounded-md border p-2">
-                  <span className="text-muted-foreground block">Contradicted</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.contradicted")}
+                  </span>
                   <span className="font-mono text-foreground">
                     {Math.round(articleInsights.contradictionRate * 100)}%
                   </span>
                 </div>
                 <div className="rounded-md border p-2">
-                  <span className="text-muted-foreground block">Unknown</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.unknown")}
+                  </span>
                   <span className="font-mono text-foreground">
                     {Math.round(articleInsights.unknownRate * 100)}%
                   </span>
                 </div>
                 <div className="rounded-md border p-2">
-                  <span className="text-muted-foreground block">Claim confidence</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.claimConfidence")}
+                  </span>
                   <span className="font-mono text-foreground">
                     {articleInsights.avgConfidence !== null
                       ? `${Math.round(articleInsights.avgConfidence * 100)}%`
@@ -678,7 +670,7 @@ export default function DocumentDetail() {
               <div className="grid sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <h3 className="text-[10px] font-mono uppercase tracking-wider text-strip-supported">
-                    Top positive contributors
+                    {tPages("documentDetail.topPositiveContributors")}
                   </h3>
                   {articleInsights.topPositive.length > 0 ? (
                     articleInsights.topPositive.map((entry) => (
@@ -690,7 +682,7 @@ export default function DocumentDetail() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] font-mono text-muted-foreground">
-                            Segment {entry.position + 1}
+                            {tPages("documentDetail.segment", { num: entry.position + 1 })}
                           </span>
                           <span className="text-[11px] font-mono text-strip-supported">
                             +{entry.contribution.toFixed(2)}
@@ -701,14 +693,14 @@ export default function DocumentDetail() {
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      No strong positive contributors yet.
+                      {tPages("documentDetail.noPositiveContributors")}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
                   <h3 className="text-[10px] font-mono uppercase tracking-wider text-strip-contradicted">
-                    Top negative contributors
+                    {tPages("documentDetail.topNegativeContributors")}
                   </h3>
                   {articleInsights.topNegative.length > 0 ? (
                     articleInsights.topNegative.map((entry) => (
@@ -720,7 +712,7 @@ export default function DocumentDetail() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] font-mono text-muted-foreground">
-                            Segment {entry.position + 1}
+                            {tPages("documentDetail.segment", { num: entry.position + 1 })}
                           </span>
                           <span className="text-[11px] font-mono text-strip-contradicted">
                             {entry.contribution.toFixed(2)}
@@ -731,7 +723,7 @@ export default function DocumentDetail() {
                     ))
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      No strong negative contributors yet.
+                      {tPages("documentDetail.noNegativeContributors")}
                     </p>
                   )}
                 </div>
@@ -780,7 +772,7 @@ export default function DocumentDetail() {
                 <Card className="border-primary/20 bg-primary/5">
                   <CardContent className="p-4 sm:p-5 space-y-2.5">
                     <h2 className="text-xs font-mono text-primary uppercase tracking-wider">
-                      Editorial Insight
+                      {tPages("documentDetail.editorialInsight")}
                     </h2>
                     <div className="prose prose-sm max-w-none text-sm sm:text-base leading-relaxed text-foreground [&_a]:text-primary [&_a]:underline">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
@@ -790,7 +782,7 @@ export default function DocumentDetail() {
                     {sourceEntries.length > 0 && (
                       <div className="pt-2 border-t border-primary/10">
                         <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                          Sources
+                          {tPages("documentDetail.sources")}
                         </span>
                         <ol className="mt-1.5 space-y-1 list-none">
                           {sourceEntries.map(({ num, url }) => (
@@ -819,13 +811,12 @@ export default function DocumentDetail() {
           {/* How to Read Results */}
           <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-3 text-xs sm:text-sm text-muted-foreground leading-relaxed">
             <span className="font-mono font-semibold text-foreground uppercase tracking-wider text-[10px]">
-              How to read these results
+              {tStrip("legend.dialogTitle")}
             </span>
             <p className="mt-1.5">
-              Scores reflect alignment between extracted claims and retrieved evidence at analysis
-              time — they are statistical signals, not editorial or legal determinations.{" "}
+              {tPages("documentDetail.scoresDisclaimer")}{" "}
               <Link to="/methodology" className="text-primary hover:underline font-medium">
-                Read the full methodology →
+                {tPages("documentDetail.readMethodology")}
               </Link>
             </p>
           </div>
@@ -862,7 +853,7 @@ export default function DocumentDetail() {
             <Card className="border-dashed">
               <CardContent className="p-4 sm:p-5 space-y-3">
                 <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                  Evidence Source Tiers
+                  {tPages("documentDetail.evidenceSourceTiers")}
                 </h2>
                 <div className="flex h-3 rounded-full overflow-hidden">
                   {tierEntries.map(({ tier, pct }) => (
@@ -875,7 +866,7 @@ export default function DocumentDetail() {
                       </TooltipTrigger>
                       <TooltipContent>
                         <span className="text-xs font-mono">
-                          {TIER_NAMES[tier as EvidenceTier]}: {tierCounts[tier]} ({pct}%)
+                          {tStrip(`tierNames.${tier}`)}: {tierCounts[tier]} ({pct}%)
                         </span>
                       </TooltipContent>
                     </Tooltip>
@@ -885,7 +876,7 @@ export default function DocumentDetail() {
                   {tierEntries.map(({ tier, count, pct }) => (
                     <div key={tier} className="flex items-center gap-1.5">
                       <div className={cn("h-2 w-2 rounded-sm", TIER_BG[tier])} />
-                      <span>{TIER_NAMES[tier as EvidenceTier]}</span>
+                      <span>{tStrip(`tierNames.${tier}`)}</span>
                       <span className="text-foreground font-semibold">{count}</span>
                       <span>({pct}%)</span>
                     </div>
@@ -900,10 +891,10 @@ export default function DocumentDetail() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 h-9">
             <TabsTrigger value="segments" className="text-sm">
-              Segments {segments?.length ? `(${segments.length})` : ""}
+              {tPages("documentDetail.segments")} {segments?.length ? `(${segments.length})` : ""}
             </TabsTrigger>
             <TabsTrigger value="raw" className="text-sm">
-              Raw
+              {tPages("documentDetail.raw")}
             </TabsTrigger>
           </TabsList>
 
@@ -961,11 +952,11 @@ export default function DocumentDetail() {
                               </p>
                               <div className="flex items-center gap-2 mt-2 flex-wrap">
                                 <span className="text-[10px] font-mono text-muted-foreground">
-                                  {seg.token_count} tokens
+                                  {tPages("documentDetail.tokens", { count: seg.token_count })}
                                 </span>
                                 {seg.label && (
                                   <Badge variant="outline" className="text-[10px] h-5">
-                                    {STRIP_LABEL_NAMES[seg.label]}
+                                    {tStrip(`segmentLabels.${seg.label}`)}
                                   </Badge>
                                 )}
                                 {seg.classification && (
@@ -985,7 +976,7 @@ export default function DocumentDetail() {
                                   neu={seg.sentiment_neu}
                                 />
                                 <span className="text-[10px] font-mono text-primary/60">
-                                  ⬡ embedded
+                                  ⬡ {tPages("documentDetail.embedded")}
                                 </span>
                               </div>
                               {hasClaims && <SegmentScoreBar claims={segClaims} />}
@@ -1007,7 +998,7 @@ export default function DocumentDetail() {
                                   </p>
                                   <div className="flex items-center gap-2.5 flex-wrap">
                                     {claim.veracity_label && (
-                                      <VeracityBadge label={claim.veracity_label} />
+                                      <VeracityBadge label={claim.veracity_label} tStrip={tStrip} />
                                     )}
                                     {claim.confidence_score !== null && (
                                       <span className="text-xs sm:text-sm font-mono text-muted-foreground">
@@ -1027,7 +1018,8 @@ export default function DocumentDetail() {
                                             "border-strip-mixed/50 text-strip-mixed bg-strip-mixed/10",
                                         )}
                                       >
-                                        {RISK_LEVEL_NAMES[claim.risk_level as RiskLevel]} Risk
+                                        {tStrip(`riskLevelNames.${claim.risk_level}`)}{" "}
+                                        {tPages("documentDetail.risk")}
                                       </Badge>
                                     )}
                                   </div>
@@ -1037,13 +1029,13 @@ export default function DocumentDetail() {
                                     claim.gap_reason === "INSUFFICIENT_TIER_FOR_RISK" && (
                                       <div className="flex items-center gap-1.5 text-xs font-mono px-2.5 py-1.5 rounded bg-strip-unknown/10 border border-strip-unknown/20 text-strip-unknown">
                                         <span>⚡</span>
-                                        <span>High-risk claim — awaiting higher-tier evidence</span>
+                                        <span>{tPages("documentDetail.highRiskClaimWarning")}</span>
                                       </div>
                                     )}
                                   {claim.gap_reason && (
                                     <p className="text-xs font-mono text-muted-foreground italic">
                                       ⚠{" "}
-                                      {GAP_REASON_NAMES[claim.gap_reason as GapReason] ||
+                                      {tStrip(`gapReasonNames.${claim.gap_reason}`) ||
                                         claim.gap_reason}
                                     </p>
                                   )}
@@ -1055,14 +1047,16 @@ export default function DocumentDetail() {
                                   {claimEvidence.length > 0 && (
                                     <div className="space-y-1.5 pt-2 border-t">
                                       <span className="text-xs font-mono text-muted-foreground uppercase">
-                                        Evidence ({claimEvidence.length}){(() => {
+                                        {tPages("documentDetail.evidence")} ({claimEvidence.length})
+                                        {(() => {
                                           const indep = claimEvidence.filter(
                                             (e) => e.is_independent,
                                           ).length;
                                           const nonIndep = claimEvidence.length - indep;
                                           return nonIndep > 0 ? (
                                             <span className="ml-1.5 text-[10px] text-muted-foreground/70 normal-case">
-                                              · {indep} independent · {nonIndep} echo
+                                              · {indep} {tPages("documentDetail.independent")} ·{" "}
+                                              {nonIndep} {tPages("documentDetail.echo")}
                                             </span>
                                           ) : null;
                                         })()}
@@ -1082,7 +1076,7 @@ export default function DocumentDetail() {
                                               variant="outline"
                                               className="text-[10px] sm:text-xs h-5"
                                             >
-                                              {TIER_NAMES[ev.source_tier]}
+                                              {tStrip(`tierNames.${ev.source_tier}`)}
                                             </Badge>
                                             {ev.nli_label && (
                                               <Badge
@@ -1105,7 +1099,7 @@ export default function DocumentDetail() {
                                                 variant="outline"
                                                 className="text-[10px] h-5 border-muted-foreground/30 text-muted-foreground"
                                               >
-                                                Non-independent
+                                                {tPages("documentDetail.nonIndependent")}
                                               </Badge>
                                             )}
                                             {ev.similarity_score !== null && (
@@ -1140,7 +1134,7 @@ export default function DocumentDetail() {
               <Card>
                 <CardContent className="p-5 sm:p-6">
                   <p className="text-sm sm:text-base text-muted-foreground text-center">
-                    No segments yet. Document needs indexing.
+                    {tPages("documentDetail.noSegments")}
                   </p>
                 </CardContent>
               </Card>
@@ -1153,7 +1147,7 @@ export default function DocumentDetail() {
               <Card>
                 <CardContent className="p-5 sm:p-6">
                   <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-4">
-                    Normalized Content
+                    {tPages("documentDetail.normalizedContent")}
                   </h2>
                   <div className="prose prose-sm sm:prose max-w-none dark:prose-invert text-foreground">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
@@ -1167,7 +1161,7 @@ export default function DocumentDetail() {
               <Card>
                 <CardContent className="p-5 sm:p-6">
                   <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-4">
-                    Raw RSS Content
+                    {tPages("documentDetail.rawRssContent")}
                   </h2>
                   <p className="text-sm sm:text-base leading-relaxed text-muted-foreground whitespace-pre-line">
                     {doc.raw_content
@@ -1182,7 +1176,7 @@ export default function DocumentDetail() {
               <Card>
                 <CardContent className="p-5 sm:p-6">
                   <p className="text-sm sm:text-base text-muted-foreground text-center">
-                    No content available yet. Pipeline status: {doc.pipeline_status}
+                    {tPages("documentDetail.noContent", { status: doc.pipeline_status })}
                   </p>
                 </CardContent>
               </Card>
@@ -1194,9 +1188,11 @@ export default function DocumentDetail() {
         {relatedDocs && relatedDocs.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-xs sm:text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-              Related Articles ({relatedDocs.length})
+              {tPages("documentDetail.relatedArticles", { count: relatedDocs.length })}
             </h2>
-            <p className="text-xs text-muted-foreground">Other articles covering the same story</p>
+            <p className="text-xs text-muted-foreground">
+              {tPages("documentDetail.relatedArticlesHint")}
+            </p>
             <div className="grid gap-2">
               {relatedDocs.map((relDoc) => (
                 <ArticleCard key={relDoc.id} document={relDoc} />
@@ -1209,36 +1205,50 @@ export default function DocumentDetail() {
         <Card className="border-dashed">
           <CardContent className="p-4 sm:p-5">
             <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-3">
-              Analysis Provenance
+              {tPages("documentDetail.analysisProvenance")}
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Normalizer</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.normalizer")}
+                </span>
                 <span className="font-mono text-foreground">gemini-2.0-flash-lite</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Embeddings</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.embeddings")}
+                </span>
                 <span className="font-mono text-foreground">text-embedding-3-small</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Classification</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.classification")}
+                </span>
                 <span className="font-mono text-foreground">perplexity/sonar</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Extraction</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.extraction")}
+                </span>
                 <span className="font-mono text-foreground">perplexity/sonar</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Veracity</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.veracity")}
+                </span>
                 <span className="font-mono text-foreground">perplexity/sonar</span>
               </div>
               <div className="space-y-0.5">
-                <span className="text-muted-foreground block">Sentiment</span>
+                <span className="text-muted-foreground block">
+                  {tPages("documentDetail.provenance.sentiment")}
+                </span>
                 <span className="font-mono text-foreground">gemini-2.5-flash-lite</span>
               </div>
               {doc.synthesis_text && (
                 <div className="space-y-0.5">
-                  <span className="text-muted-foreground block">Synthesis</span>
+                  <span className="text-muted-foreground block">
+                    {tPages("documentDetail.provenance.synthesis")}
+                  </span>
                   <span className="font-mono text-foreground">perplexity/sonar</span>
                 </div>
               )}

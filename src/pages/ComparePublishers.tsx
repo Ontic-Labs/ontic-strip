@@ -15,7 +15,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { SEOHead } from "@/lib/seo";
-import { STRIP_LABEL_NAMES } from "@/lib/types";
 import type { PublisherBaseline } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -37,6 +36,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { useTranslation } from "../i18n";
 
 const PIE_COLORS: Record<string, string> = {
   SUPPORTED: "hsl(145, 63%, 42%)",
@@ -52,6 +52,10 @@ const PIE_COLORS: Record<string, string> = {
 const PUBLISHER_COLORS = ["hsl(217, 91%, 60%)", "hsl(145, 63%, 42%)", "hsl(25, 95%, 53%)"];
 
 export default function ComparePublishers() {
+  const { t, i18n } = useTranslation("pages");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
+  const locale = i18n.language;
   const [selectedPublishers, setSelectedPublishers] = useState<string[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
 
@@ -65,11 +69,12 @@ export default function ComparePublishers() {
   });
 
   const { data: feeds } = useQuery({
-    queryKey: ["feeds-categories"],
+    queryKey: ["feeds-categories", locale],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("feeds")
         .select("publisher_name, source_category")
+        .eq("locale", locale)
         .order("publisher_name");
       if (error) throw error;
       return data as { publisher_name: string; source_category: string }[];
@@ -78,9 +83,14 @@ export default function ComparePublishers() {
 
   const availablePublishers = useMemo(() => {
     if (!allBaselines) return [];
-    const names = new Set(allBaselines.map((b) => b.publisher_name));
+    const localeNames = new Set(feeds?.map((f) => f.publisher_name) ?? []);
+    const names = new Set(
+      allBaselines
+        .map((b) => b.publisher_name)
+        .filter((n) => localeNames.size === 0 || localeNames.has(n)),
+    );
     return Array.from(names).sort();
-  }, [allBaselines]);
+  }, [allBaselines, feeds]);
 
   const categoryMap = useMemo(
     () => new Map(feeds?.map((f) => [f.publisher_name, f.source_category]) ?? []),
@@ -110,7 +120,7 @@ export default function ComparePublishers() {
     return Object.entries(b7.segment_label_distribution)
       .filter(([, v]) => v > 0)
       .map(([label, value]) => ({
-        name: STRIP_LABEL_NAMES[label as keyof typeof STRIP_LABEL_NAMES] ?? label,
+        name: tStrip(`segmentLabels.${label}`) ?? label,
         value,
         fill: PIE_COLORS[label] ?? "hsl(220, 10%, 82%)",
       }));
@@ -120,12 +130,36 @@ export default function ComparePublishers() {
   const comparisonData = useMemo(() => {
     if (selectedPublishers.length < 2) return [];
     const metrics = [
-      { metric: "Integrity (7d)", period: "7d" as const, key: "avg_integrity_score" as const },
-      { metric: "Grounding (7d)", period: "7d" as const, key: "avg_grounding_score" as const },
-      { metric: "Factuality (7d)", period: "7d" as const, key: "avg_factuality_score" as const },
-      { metric: "Integrity (30d)", period: "30d" as const, key: "avg_integrity_score" as const },
-      { metric: "Grounding (30d)", period: "30d" as const, key: "avg_grounding_score" as const },
-      { metric: "Factuality (30d)", period: "30d" as const, key: "avg_factuality_score" as const },
+      {
+        metric: `${tStrip("scoreLabels.integrity")} (7d)`,
+        period: "7d" as const,
+        key: "avg_integrity_score" as const,
+      },
+      {
+        metric: `${tStrip("scoreLabels.grounding")} (7d)`,
+        period: "7d" as const,
+        key: "avg_grounding_score" as const,
+      },
+      {
+        metric: `${tStrip("scoreLabels.factuality")} (7d)`,
+        period: "7d" as const,
+        key: "avg_factuality_score" as const,
+      },
+      {
+        metric: `${tStrip("scoreLabels.integrity")} (30d)`,
+        period: "30d" as const,
+        key: "avg_integrity_score" as const,
+      },
+      {
+        metric: `${tStrip("scoreLabels.grounding")} (30d)`,
+        period: "30d" as const,
+        key: "avg_grounding_score" as const,
+      },
+      {
+        metric: `${tStrip("scoreLabels.factuality")} (30d)`,
+        period: "30d" as const,
+        key: "avg_factuality_score" as const,
+      },
     ];
     return metrics.map(({ metric, period, key }) => ({
       metric,
@@ -133,7 +167,7 @@ export default function ComparePublishers() {
         selectedPublishers.map((p) => [p, Math.round((getBaseline(p, period)?.[key] ?? 0) * 100)]),
       ),
     }));
-  }, [selectedPublishers, getBaseline]);
+  }, [selectedPublishers, getBaseline, tStrip]);
 
   // Ideology scatter data for comparing publishers
   const ideologyScatterData = useMemo(() => {
@@ -162,11 +196,9 @@ export default function ComparePublishers() {
         {/* Header */}
         <div className="space-y-1">
           <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
-            Compare Publishers
+            {t("compare.title")}
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Select up to 3 publishers to compare their integrity metrics side by side
-          </p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t("compare.description")}</p>
         </div>
 
         {/* Publisher selector */}
@@ -189,15 +221,15 @@ export default function ComparePublishers() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs font-mono gap-1.5">
                   <Plus className="h-3 w-3" />
-                  Add publisher
+                  {t("compare.addPublisher")}
                   <ChevronsUpDown className="h-3 w-3 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Search publishers..." />
+                  <CommandInput placeholder={t("compare.searchPublishers")} />
                   <CommandList>
-                    <CommandEmpty>No publisher found.</CommandEmpty>
+                    <CommandEmpty>{t("compare.noPublisherFound")}</CommandEmpty>
                     <CommandGroup>
                       {availablePublishers
                         .filter((p) => !selectedPublishers.includes(p))
@@ -211,7 +243,7 @@ export default function ComparePublishers() {
                             {p}
                             {categoryMap.get(p) && (
                               <span className="ml-auto text-[10px] text-muted-foreground">
-                                {categoryMap.get(p)}
+                                {tUI(`categories.${categoryMap.get(p)}`)}
                               </span>
                             )}
                           </CommandItem>
@@ -227,13 +259,13 @@ export default function ComparePublishers() {
         {/* Content */}
         {isLoading ? (
           <div className="text-center py-16 text-muted-foreground text-sm">
-            Loading baselines...
+            {t("compare.loading")}
           </div>
         ) : selectedPublishers.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
-            <p className="text-sm">Select publishers above to start comparing</p>
+            <p className="text-sm">{t("compare.selectToStart")}</p>
             <p className="text-xs mt-1">
-              Choose from {availablePublishers.length} publishers with baseline data
+              {t("compare.publishersAvailable", { count: availablePublishers.length })}
             </p>
           </div>
         ) : (
@@ -286,7 +318,7 @@ export default function ComparePublishers() {
                             "text-strip-supported border-strip-supported/30",
                         )}
                       >
-                        {category}
+                        {tUI(`categories.${category}`)}
                       </Badge>
                     </CardHeader>
                     <CardContent className="px-3 sm:px-4 pb-3 sm:pb-4 space-y-3">
@@ -296,11 +328,23 @@ export default function ComparePublishers() {
                           7-Day
                         </span>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <ScoreBadge label="G" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
-                          <ScoreBadge label="I" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
-                          <ScoreBadge label="F" labelKey="factuality" score={b7?.avg_factuality_score ?? null} />
+                          <ScoreBadge
+                            label="G"
+                            labelKey="grounding"
+                            score={b7?.avg_grounding_score ?? null}
+                          />
+                          <ScoreBadge
+                            label="I"
+                            labelKey="integrity"
+                            score={b7?.avg_integrity_score ?? null}
+                          />
+                          <ScoreBadge
+                            label="F"
+                            labelKey="factuality"
+                            score={b7?.avg_factuality_score ?? null}
+                          />
                           <span className="text-[10px] text-muted-foreground ml-auto font-mono">
-                            {b7?.document_count ?? 0} articles
+                            {b7?.document_count ?? 0} {tUI("units.articles")}
                           </span>
                         </div>
                       </div>
@@ -310,11 +354,23 @@ export default function ComparePublishers() {
                           30-Day
                         </span>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <ScoreBadge label="G" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
-                          <ScoreBadge label="I" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
-                          <ScoreBadge label="F" labelKey="factuality" score={b30?.avg_factuality_score ?? null} />
+                          <ScoreBadge
+                            label="G"
+                            labelKey="grounding"
+                            score={b30?.avg_grounding_score ?? null}
+                          />
+                          <ScoreBadge
+                            label="I"
+                            labelKey="integrity"
+                            score={b30?.avg_integrity_score ?? null}
+                          />
+                          <ScoreBadge
+                            label="F"
+                            labelKey="factuality"
+                            score={b30?.avg_factuality_score ?? null}
+                          />
                           <span className="text-[10px] text-muted-foreground ml-auto font-mono">
-                            {b30?.document_count ?? 0} articles
+                            {b30?.document_count ?? 0} {tUI("units.articles")}
                           </span>
                         </div>
                       </div>
@@ -350,7 +406,9 @@ export default function ComparePublishers() {
             {comparisonData.length > 0 && (
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
-                  <CardTitle className="text-xs sm:text-sm font-mono">Score Comparison</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-mono">
+                    {t("compare.scoreComparison")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
                   <ResponsiveContainer width="100%" height={220}>
@@ -414,10 +472,10 @@ export default function ComparePublishers() {
               <Card>
                 <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
                   <CardTitle className="text-xs sm:text-sm font-mono">
-                    Ideology Comparison (7d avg)
+                    {t("compare.ideologyComparison")}
                   </CardTitle>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Average ideological position per publisher on economic and social axes.
+                    {t("compare.ideologyComparisonHint")}
                   </p>
                 </CardHeader>
                 <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
@@ -431,7 +489,7 @@ export default function ComparePublishers() {
                         ticks={[-10, -5, 0, 5, 10]}
                         tick={{ fontSize: 10 }}
                         label={{
-                          value: "Economic ← Left · Right →",
+                          value: t("compare.economicAxis"),
                           position: "bottom",
                           fontSize: 10,
                           className: "fill-muted-foreground",
@@ -445,7 +503,7 @@ export default function ComparePublishers() {
                         tick={{ fontSize: 10 }}
                         width={30}
                         label={{
-                          value: "← Progressive · Conservative →",
+                          value: t("compare.socialAxis"),
                           angle: -90,
                           position: "insideLeft",
                           fontSize: 10,
@@ -464,14 +522,14 @@ export default function ComparePublishers() {
                             <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-sm space-y-0.5">
                               <div className="font-mono font-semibold">{d.publisher}</div>
                               <div>
-                                Economic:{" "}
+                                {tStrip("ideology.economic")}:{" "}
                                 <span className="font-mono">
                                   {d.economic > 0 ? "+" : ""}
                                   {d.economic.toFixed(1)}
                                 </span>
                               </div>
                               <div>
-                                Social:{" "}
+                                {tStrip("ideology.social")}:{" "}
                                 <span className="font-mono">
                                   {d.social > 0 ? "+" : ""}
                                   {d.social.toFixed(1)}

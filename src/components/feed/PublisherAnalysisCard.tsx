@@ -4,8 +4,8 @@ import { STRIP_COLORS, STRIP_LABEL_NAMES } from "@/lib/types";
 import type { PublisherBaseline, SegmentLabel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import { useTranslation } from '../../i18n';
-import { formatNumber } from '../../lib/format';
+import { useTranslation } from "../../i18n";
+import { formatNumber } from "../../lib/format";
 
 interface PublisherAnalysisCardProps {
   publisherName: string;
@@ -13,11 +13,12 @@ interface PublisherAnalysisCardProps {
   baselines: PublisherBaseline[];
 }
 
+export function PublisherAnalysisCard({
   publisherName,
   category,
   baselines,
 }: PublisherAnalysisCardProps) {
-  const { t } = useTranslation('feed');
+  const { t } = useTranslation("feed");
   const b7 = baselines.find((b) => b.period === "7d");
   const b30raw = baselines.find((b) => b.period === "30d");
   // Hide 30d row when values are identical to 7d (insufficient history)
@@ -49,7 +50,7 @@ interface PublisherAnalysisCardProps {
       <CardContent className="p-3 sm:p-4 space-y-3">
         {!hasData ? (
           <p className="text-[10px] sm:text-xs text-muted-foreground italic">
-            {t('noBaselineData')}
+            {t("noBaselineData")}
           </p>
         ) : (
           <>
@@ -60,10 +61,10 @@ interface PublisherAnalysisCardProps {
                   <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider w-6 shrink-0">
                     7d
                   </span>
-                  <ScoreBadge label="Grounding" labelKey="grounding" score={b7.avg_grounding_score} />
-                  <ScoreBadge label="Integrity" labelKey="integrity" score={b7.avg_integrity_score} />
+                  <ScoreBadge labelKey="grounding" score={b7.avg_grounding_score} />
+                  <ScoreBadge labelKey="integrity" score={b7.avg_integrity_score} />
                   <span className="text-[10px] text-muted-foreground font-mono">
-                    {t('articleCount', { count: b7.document_count })}
+                    {t("articleCount", { count: b7.document_count })}
                   </span>
                 </div>
               )}
@@ -72,10 +73,10 @@ interface PublisherAnalysisCardProps {
                   <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider w-6 shrink-0">
                     30d
                   </span>
-                  <ScoreBadge label="Grounding" labelKey="grounding" score={b30.avg_grounding_score} />
-                  <ScoreBadge label="Integrity" labelKey="integrity" score={b30.avg_integrity_score} />
+                  <ScoreBadge labelKey="grounding" score={b30.avg_grounding_score} />
+                  <ScoreBadge labelKey="integrity" score={b30.avg_integrity_score} />
                   <span className="text-[10px] text-muted-foreground font-mono">
-                    {t('articleCount', { count: b30.document_count })}
+                    {t("articleCount", { count: b30.document_count })}
                   </span>
                 </div>
               )}
@@ -85,7 +86,7 @@ interface PublisherAnalysisCardProps {
             {distributionData.length > 0 && (
               <div className="space-y-1.5">
                 <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
-                  {t('segmentDistribution7d')}
+                  {t("segmentDistribution7d")}
                 </span>
                 {/* Stacked bar */}
                 <div className="flex h-3 rounded-sm overflow-hidden gap-px">
@@ -117,7 +118,7 @@ interface PublisherAnalysisCardProps {
               to={`/publisher/${encodeURIComponent(publisherName)}`}
               className="text-[10px] text-primary hover:underline font-mono"
             >
-              {t('viewFullProfile')}
+              {t("viewFullProfile")}
             </Link>
           </>
         )}

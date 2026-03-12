@@ -1,13 +1,13 @@
 {
-  "newStories": "{{count}} new story",
-  "newStories_plural": "{{count}} new stories",
+  "newStories_one": "{{count}} new story",
+  "newStories_other": "{{count}} new stories",
   "noStories": "No stories available",
   "unknownPublisher": "Unknown publisher",
   "untitledArticle": "Untitled article",
   "grounding": "Grounding",
   "integrity": "Integrity",
-  "articleCount": "{{count}} article",
-  "articleCount_plural": "{{count}} articles",
+  "articleCount_one": "{{count}} article",
+  "articleCount_other": "{{count}} articles",
   "segmentDistribution7d": "Segment distribution (7-day)",
   "viewFullProfile": "View full profile",
   "pipelineStatuses": {
@@ -19,5 +19,16 @@
     "verifying": "Verifying",
     "aggregated": "Complete",
     "failed": "Failed"
-  }
+  },
+  "pageTitle": "Feed",
+  "pageDescription": "Real-time integrity analysis of ingested articles",
+  "searchArticles": "Search articles...",
+  "allPublishers": "All Publishers",
+  "allCategories": "All categories",
+  "noArticlesFiltered": "No matching articles",
+  "noArticlesYet": "No articles yet",
+  "noArticlesFilteredHint": "Try adjusting your search or filter.",
+  "noArticlesYetHint": "Add RSS feeds in the admin panel to start ingesting articles.",
+  "publisherSummary": "Publisher Summary",
+  "articles": "Articles ({{count}})"
 }

@@ -23,6 +23,7 @@
     "supabase:types": "node ./scripts/gen-supabase-types.mjs",
     "supabase:types:local": "node ./scripts/gen-supabase-types.mjs --local",
     "supabase:types:check": "node ./scripts/gen-supabase-types.mjs --check",
+    "lint:i18n": "eslint --ext .ts,.tsx --config .eslintrc-i18n.json src/",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -86,6 +87,5 @@
     "typescript": "^5.8.3",
     "vite": "^5.4.19",
     "vitest": "^3.2.4"
-  },
-  "lint:i18n": "eslint --ext .ts,.tsx --config .eslintrc-i18n.json src/"
+  }
 }

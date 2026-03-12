@@ -1,0 +1,53 @@
+{
+  "button": {
+    "submit": "Enviar",
+    "cancel": "Cancelar"
+  },
+  "search": {
+    "placeholder": "Buscar..."
+  },
+  "emDash": "—",
+  "pagination": {
+    "previous": "Anterior",
+    "next": "Próximo",
+    "page": "Página {{current}} / {{total}}",
+    "showingRange": "Mostrando {{entity}} {{start}}-{{end}} de {{total}}"
+  },
+  "categories": {
+    "all": "Todos",
+    "mainstream": "Mainstream",
+    "partisan": "Partidário",
+    "fringe": "Marginal",
+    "reference": "Referência"
+  },
+  "empty": {
+    "noMatches": "Sem resultados",
+    "tryDifferent": "Tente uma busca ou categoria diferente."
+  },
+  "units": {
+    "articles": "artigos",
+    "article_one": "{{count}} artigo",
+    "article_other": "{{count}} artigos",
+    "feeds": "feeds",
+    "feed_one": "{{count}} feed",
+    "feed_other": "{{count}} feeds",
+    "source_one": "{{count}} fonte",
+    "source_other": "{{count}} fontes",
+    "words": "palavras",
+    "risk": "risco"
+  },
+  "eventTypes": {
+    "political": "Política",
+    "conflict": "Conflito",
+    "economic": "Economia",
+    "social": "Social",
+    "legal": "Jurídico",
+    "environmental": "Meio Ambiente",
+    "health": "Saúde",
+    "technological": "Tecnologia",
+    "cultural": "Cultura",
+    "disaster": "Desastre",
+    "diplomatic": "Diplomacia",
+    "unclassified": "Outro"
+  }
+}

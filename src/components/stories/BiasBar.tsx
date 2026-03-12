@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "../../i18n";
 
 interface BiasBarProps {
   left: number;
@@ -16,6 +17,7 @@ const BIAS_COLORS = {
 };
 
 export function BiasBar({ left, center, right, total, className }: BiasBarProps) {
+  const { t } = useTranslation("strip");
   if (total === 0) return null;
 
   const pctL = Math.round((left / total) * 100);
@@ -35,7 +37,7 @@ export function BiasBar({ left, center, right, total, className }: BiasBarProps)
             </TooltipTrigger>
             <TooltipContent>
               <span className="text-xs font-mono">
-                Left: {left} ({pctL}%)
+                {t("bias.left")}: {left} ({pctL}%)
               </span>
             </TooltipContent>
           </Tooltip>
@@ -50,7 +52,7 @@ export function BiasBar({ left, center, right, total, className }: BiasBarProps)
             </TooltipTrigger>
             <TooltipContent>
               <span className="text-xs font-mono">
-                Center: {center} ({pctC}%)
+                {t("bias.center")}: {center} ({pctC}%)
               </span>
             </TooltipContent>
           </Tooltip>
@@ -65,16 +67,28 @@ export function BiasBar({ left, center, right, total, className }: BiasBarProps)
             </TooltipTrigger>
             <TooltipContent>
               <span className="text-xs font-mono">
-                Right: {right} ({pctR}%)
+                {t("bias.right")}: {right} ({pctR}%)
               </span>
             </TooltipContent>
           </Tooltip>
         )}
       </div>
       <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
-        {pctL > 0 && <span>L {pctL}%</span>}
-        {pctC > 0 && <span>C {pctC}%</span>}
-        {pctR > 0 && <span className="ml-auto">R {pctR}%</span>}
+        {pctL > 0 && (
+          <span>
+            {t("bias.left").charAt(0)} {pctL}%
+          </span>
+        )}
+        {pctC > 0 && (
+          <span>
+            {t("bias.center").charAt(0)} {pctC}%
+          </span>
+        )}
+        {pctR > 0 && (
+          <span className="ml-auto">
+            {t("bias.right").charAt(0)} {pctR}%
+          </span>
+        )}
       </div>
     </div>
   );

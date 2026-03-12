@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation as useI18nTranslation } from "../i18n";
 
 const CATEGORY_FILTERS: { value: SourceCategory | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -66,6 +67,8 @@ interface PipelineOpsSummary {
 export default function AdminFeeds() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useI18nTranslation("pages");
+  const { t: tUI } = useI18nTranslation("ui");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<SourceCategory | "all">("all");
@@ -119,8 +122,8 @@ export default function AdminFeeds() {
       setConnectingInoreader(false);
     } catch {
       toast({
-        title: "Error",
-        description: "Failed to start Inoreader OAuth",
+        title: t("admin.error"),
+        description: t("admin.failedInoreaderOAuth"),
         variant: "destructive",
       });
       setConnectingInoreader(false);
@@ -166,7 +169,7 @@ export default function AdminFeeds() {
         source_category: "mainstream",
         polling_interval_minutes: 15,
       });
-      toast({ title: "Feed added", description: "Generating description…" });
+      toast({ title: t("admin.feedAdded"), description: t("admin.generating") });
 
       // Fire-and-forget AI description generation
       try {
@@ -187,7 +190,7 @@ export default function AdminFeeds() {
       }
     },
     onError: (err) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("admin.error"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -210,7 +213,7 @@ export default function AdminFeeds() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feeds"] });
-      toast({ title: "Feed removed" });
+      toast({ title: t("admin.feedRemoved") });
     },
   });
 
@@ -229,10 +232,10 @@ export default function AdminFeeds() {
           body: { action: "update", id: feed.id, description: data.description },
         });
         queryClient.invalidateQueries({ queryKey: ["feeds"] });
-        toast({ title: "Description generated" });
+        toast({ title: t("admin.descriptionGenerated") });
       }
     } catch (e) {
-      toast({ title: "Failed to generate description", variant: "destructive" });
+      toast({ title: t("admin.failedGenerateDescription"), variant: "destructive" });
     } finally {
       setGeneratingDescId(null);
     }
@@ -311,11 +314,11 @@ export default function AdminFeeds() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
         title: `${data.publisher_name}`,
-        description: `${data.collected} new articles collected`,
+        description: t("admin.articlesCollected", { count: data.collected }),
       });
     },
     onError: (err) => {
-      toast({ title: "Poll failed", description: err.message, variant: "destructive" });
+      toast({ title: t("admin.pollFailed"), description: err.message, variant: "destructive" });
     },
     onSettled: () => setPollingFeedId(null),
   });
@@ -354,12 +357,16 @@ export default function AdminFeeds() {
       queryClient.invalidateQueries({ queryKey: ["feeds"] });
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
-        title: "Collection complete",
-        description: `${data.collected} new articles from ${data.feedsPolled} sources${data.errors?.length ? ` (${data.errors.length} feed errors)` : ""}`,
+        title: t("admin.collectionComplete"),
+        description: t("admin.collectionSummary", {
+          collected: data.collected,
+          sources: data.feedsPolled,
+          errors: data.errors?.length ?? 0,
+        }),
       });
     },
     onError: (err) => {
-      toast({ title: "Poll failed", description: err.message, variant: "destructive" });
+      toast({ title: t("admin.pollFailed"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -376,11 +383,9 @@ export default function AdminFeeds() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="space-y-1">
             <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
-              Feed Management
+              {t("admin.title")}
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Configure RSS sources for the pipeline
-            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{t("admin.description")}</p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -408,20 +413,20 @@ export default function AdminFeeds() {
               disabled={pollNow.isPending}
               title="Polling has a short cooldown to avoid rate limiting"
             >
-              {pollNow.isPending ? "Polling…" : "⟳ Poll"}
+              {pollNow.isPending ? t("admin.polling") : t("admin.poll")}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">+ Add Feed</Button>
+                <Button size="sm">{t("admin.addFeed")}</Button>
               </DialogTrigger>
               <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle className="font-mono">Add RSS Feed</DialogTitle>
+                  <DialogTitle className="font-mono">{t("admin.addFeedDialog")}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Feed URL</Label>
+                    <Label>{t("admin.feedUrl")}</Label>
                     <Input
                       placeholder="https://example.com/rss"
                       value={newFeed.url}
@@ -429,7 +434,7 @@ export default function AdminFeeds() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Publisher Name</Label>
+                    <Label>{t("admin.publisherName")}</Label>
                     <Input
                       placeholder="e.g. Reuters"
                       value={newFeed.publisher_name}
@@ -440,7 +445,7 @@ export default function AdminFeeds() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Category</Label>
+                      <Label>{t("admin.category")}</Label>
                       <Select
                         value={newFeed.source_category}
                         onValueChange={(v) =>
@@ -451,15 +456,15 @@ export default function AdminFeeds() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="mainstream">Mainstream</SelectItem>
-                          <SelectItem value="partisan">Partisan</SelectItem>
-                          <SelectItem value="fringe">Fringe</SelectItem>
-                          <SelectItem value="reference">Reference</SelectItem>
+                          <SelectItem value="mainstream">{tUI("categories.mainstream")}</SelectItem>
+                          <SelectItem value="partisan">{tUI("categories.partisan")}</SelectItem>
+                          <SelectItem value="fringe">{tUI("categories.fringe")}</SelectItem>
+                          <SelectItem value="reference">{tUI("categories.reference")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Interval (min)</Label>
+                      <Label>{t("admin.interval")}</Label>
                       <Input
                         type="number"
                         value={newFeed.polling_interval_minutes}
@@ -477,7 +482,7 @@ export default function AdminFeeds() {
                     onClick={() => addFeed.mutate()}
                     disabled={!newFeed.url || !newFeed.publisher_name}
                   >
-                    Add Feed
+                    {t("admin.addFeedButton")}
                   </Button>
                 </div>
               </DialogContent>
@@ -488,7 +493,7 @@ export default function AdminFeeds() {
         {/* Search & Category filter */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Input
-            placeholder="Search feeds…"
+            placeholder={t("admin.searchFeeds")}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -514,7 +519,7 @@ export default function AdminFeeds() {
                       : "bg-muted/50 text-muted-foreground hover:bg-muted",
                   )}
                 >
-                  {cat.label}
+                  {tUI(`categories.${cat.value}`)}
                   <span className="text-[10px] font-mono opacity-60">{count}</span>
                 </button>
               );
@@ -527,7 +532,7 @@ export default function AdminFeeds() {
           <Card>
             <CardContent className="p-3 sm:p-4 text-center">
               <div className="text-xl sm:text-2xl font-mono font-bold">{feeds?.length ?? 0}</div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Total</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">{t("admin.total")}</div>
             </CardContent>
           </Card>
           <Card>
@@ -535,7 +540,9 @@ export default function AdminFeeds() {
               <div className="text-xl sm:text-2xl font-mono font-bold text-strip-supported">
                 {feeds?.filter((f) => f.is_active).length ?? 0}
               </div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Active</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">
+                {t("admin.active")}
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -543,7 +550,9 @@ export default function AdminFeeds() {
               <div className="text-xl sm:text-2xl font-mono font-bold text-muted-foreground">
                 {feeds?.filter((f) => !f.is_active).length ?? 0}
               </div>
-              <div className="text-[10px] sm:text-xs text-muted-foreground">Paused</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground">
+                {t("admin.paused")}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -552,23 +561,27 @@ export default function AdminFeeds() {
         <Card>
           <CardContent className="p-3 sm:p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs sm:text-sm font-semibold font-mono">Pipeline Ops (live)</h2>
-              <span className="text-[10px] sm:text-xs text-muted-foreground">30s refresh</span>
+              <h2 className="text-xs sm:text-sm font-semibold font-mono">
+                {t("admin.pipelineOps")}
+              </h2>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">
+                {t("admin.refresh30s")}
+              </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded bg-muted/40 p-2 text-center">
                 <div className="text-base font-mono font-bold">{opsSummary?.queue_depth ?? 0}</div>
-                <div className="text-[10px] text-muted-foreground">Queue</div>
+                <div className="text-[10px] text-muted-foreground">{t("admin.queue")}</div>
               </div>
               <div className="rounded bg-muted/40 p-2 text-center">
                 <div className="text-base font-mono font-bold">{opsSummary?.dlq_count ?? 0}</div>
-                <div className="text-[10px] text-muted-foreground">DLQ</div>
+                <div className="text-[10px] text-muted-foreground">{t("admin.dlq")}</div>
               </div>
               <div className="rounded bg-muted/40 p-2 text-center">
                 <div className="text-base font-mono font-bold">
                   {opsSummary?.paused_stages?.length ?? 0}
                 </div>
-                <div className="text-[10px] text-muted-foreground">Paused stages</div>
+                <div className="text-[10px] text-muted-foreground">{t("admin.pausedStages")}</div>
               </div>
             </div>
 
@@ -605,8 +618,11 @@ export default function AdminFeeds() {
           {!isLoading && filteredFeeds.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                Showing feeds {(currentPage - 1) * FEEDS_PER_PAGE + 1}-
-                {Math.min(currentPage * FEEDS_PER_PAGE, totalFeeds)} of {totalFeeds}
+                {tUI("pagination.showing", {
+                  from: (currentPage - 1) * FEEDS_PER_PAGE + 1,
+                  to: Math.min(currentPage * FEEDS_PER_PAGE, totalFeeds),
+                  total: totalFeeds,
+                })}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -615,10 +631,10 @@ export default function AdminFeeds() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
                 >
-                  Previous
+                  {tUI("pagination.previous")}
                 </Button>
                 <span className="font-mono text-[11px]">
-                  Page {currentPage} / {totalPages}
+                  {tUI("pagination.page", { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"
@@ -626,7 +642,7 @@ export default function AdminFeeds() {
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
                 >
-                  Next
+                  {tUI("pagination.next")}
                 </Button>
               </div>
             </div>
@@ -641,16 +657,18 @@ export default function AdminFeeds() {
               <div className="text-3xl sm:text-4xl">⚙</div>
               {!feeds?.length ? (
                 <>
-                  <h2 className="text-base sm:text-lg font-semibold">No feeds configured</h2>
+                  <h2 className="text-base sm:text-lg font-semibold">
+                    {t("admin.noFeedsConfigured")}
+                  </h2>
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    Click "Add Feed" to get started.
+                    {t("admin.noFeedsHint")}
                   </p>
                 </>
               ) : (
                 <>
-                  <h2 className="text-base sm:text-lg font-semibold">No matches</h2>
+                  <h2 className="text-base sm:text-lg font-semibold">{tUI("empty.noMatches")}</h2>
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    Try a different search or category.
+                    {tUI("empty.tryDifferent")}
                   </p>
                 </>
               )}
@@ -680,7 +698,7 @@ export default function AdminFeeds() {
                             </Badge>
                             {!feed.is_active && (
                               <Badge variant="secondary" className="text-[9px] sm:text-[10px]">
-                                Paused
+                                {t("admin.paused")}
                               </Badge>
                             )}
                           </div>
@@ -699,15 +717,17 @@ export default function AdminFeeds() {
                               disabled={generatingDescId === feed.id}
                             >
                               {generatingDescId === feed.id
-                                ? "Generating…"
-                                : "✦ Generate description"}
+                                ? t("admin.generating")
+                                : t("admin.generateDescription")}
                             </button>
                           )}
                           <div className="flex gap-2 sm:gap-3 mt-1 text-[10px] sm:text-xs text-muted-foreground">
-                            <span>Every {feed.polling_interval_minutes}m</span>
+                            <span>
+                              {t("admin.every", { minutes: feed.polling_interval_minutes })}
+                            </span>
                             {feed.last_polled_at && (
                               <span>
-                                Polled{" "}
+                                {t("admin.polled")}{" "}
                                 {formatDistanceToNow(new Date(feed.last_polled_at), {
                                   addSuffix: true,
                                 })}
@@ -738,7 +758,7 @@ export default function AdminFeeds() {
                               toggleFeed.mutate({ id: feed.id, is_active: !feed.is_active })
                             }
                           >
-                            {feed.is_active ? "Pause" : "Resume"}
+                            {feed.is_active ? t("admin.pause") : t("admin.resume")}
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -747,24 +767,25 @@ export default function AdminFeeds() {
                                 size="sm"
                                 className="h-7 px-2 text-xs text-destructive hover:text-destructive"
                               >
-                                Delete
+                                {t("admin.delete")}
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Remove {feed.publisher_name}?</AlertDialogTitle>
+                                <AlertDialogTitle>
+                                  {t("admin.removeFeed", { name: feed.publisher_name })}
+                                </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will delete the feed and stop collecting new articles.
-                                  Existing articles will remain.
+                                  {t("admin.removeFeedDescription")}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>{tUI("button.cancel")}</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deleteFeed.mutate(feed.id)}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
-                                  Delete
+                                  {t("admin.delete")}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

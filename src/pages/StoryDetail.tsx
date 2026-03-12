@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "../i18n";
 
 function toBias(category: string): "left" | "center" | "right" {
   if (category === "lean-left" || category === "partisan-left") return "left";
@@ -24,6 +25,9 @@ type ViewMode = "grouped" | "compare";
 
 export default function StoryDetail() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation("stories");
+  const { t: tUI } = useTranslation("ui");
+  const { t: tStrip } = useTranslation("strip");
   const [viewMode, setViewMode] = useState<ViewMode>("grouped");
 
   const { data, isLoading } = useQuery({
@@ -135,7 +139,7 @@ export default function StoryDetail() {
           to="/stories"
           className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          ← Back to Stories
+          {t("backToStories")}
         </Link>
 
         {isLoading ? (
@@ -167,11 +171,11 @@ export default function StoryDetail() {
 
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-mono text-muted-foreground">
-                  {docs.length} source{docs.length !== 1 ? "s" : ""}
+                  {tUI("units.source", { count: docs.length })}
                 </span>
                 <BlindspotBadge left={left} center={center} right={right} />
-                <ScoreBadge label="Avg Grounding" labelKey="avgGrounding" score={avgGrounding} />
-                <ScoreBadge label="Avg Integrity" labelKey="avgIntegrity" score={avgIntegrity} />
+                <ScoreBadge labelKey="avgGrounding" score={avgGrounding} />
+                <ScoreBadge labelKey="avgIntegrity" score={avgIntegrity} />
               </div>
 
               <BiasBar
@@ -195,7 +199,7 @@ export default function StoryDetail() {
                       : "text-muted-foreground hover:bg-accent",
                   )}
                 >
-                  By Bias
+                  {t("byBias")}
                 </button>
                 <button
                   type="button"
@@ -207,7 +211,7 @@ export default function StoryDetail() {
                       : "text-muted-foreground hover:bg-accent",
                   )}
                 >
-                  Compare
+                  {t("compare")}
                 </button>
               </div>
             )}
@@ -215,7 +219,11 @@ export default function StoryDetail() {
             {viewMode === "grouped" ? (
               (["left", "center", "right"] as const).map((bias) => {
                 const biasLabel =
-                  bias === "left" ? "Left-Leaning" : bias === "right" ? "Right-Leaning" : "Center";
+                  bias === "left"
+                    ? tStrip("bias.leftLeaning")
+                    : bias === "right"
+                      ? tStrip("bias.rightLeaning")
+                      : tStrip("bias.center");
                 const biasColor =
                   bias === "left"
                     ? "text-bias-left"
@@ -243,10 +251,7 @@ export default function StoryDetail() {
               })
             ) : (
               <div className="space-y-4">
-                <p className="text-xs text-muted-foreground">
-                  Compare how different outlets covered this event — strips aligned for easy
-                  comparison.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("compareDescription")}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {docs
                     .filter((d) => d.integrity_score != null)
@@ -280,7 +285,7 @@ export default function StoryDetail() {
                               </span>
                             </div>
                             <h3 className="text-xs sm:text-sm font-semibold leading-snug line-clamp-2">
-                              {doc.title ?? "Untitled"}
+                              {doc.title ?? t("untitled")}
                             </h3>
                             <StripSummaryBar cells={doc.strip ?? []} />
                             <div className="flex items-center gap-3">
@@ -289,7 +294,7 @@ export default function StoryDetail() {
                             </div>
                             {doc.word_count && (
                               <span className="text-[10px] text-muted-foreground font-mono">
-                                {doc.word_count.toLocaleString()} words
+                                {`${doc.word_count.toLocaleString()} ${tUI("units.words")}`}
                               </span>
                             )}
                           </div>
@@ -304,11 +309,9 @@ export default function StoryDetail() {
               <Card className="border-dashed">
                 <CardContent className="p-4 sm:p-5 space-y-3">
                   <h2 className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-                    Topic benchmarks for this event
+                    {t("topicBenchmarks")}
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Event-specific publisher performance (not global baseline).
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("topicBenchmarksDescription")}</p>
                   <div className="space-y-2">
                     {topicBenchmarks.map((row) => (
                       <div key={row.publisher} className="rounded-md border p-3">
@@ -317,14 +320,14 @@ export default function StoryDetail() {
                             {row.publisher}
                           </span>
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            {row.docs} source{row.docs !== 1 ? "s" : ""}
+                            {tUI("units.source", { count: row.docs })}
                           </span>
                         </div>
                         <div className="mt-2 flex items-center gap-3 flex-wrap">
                           <ScoreBadge labelKey="eventGrounding" score={row.avgGrounding} />
                           <ScoreBadge labelKey="eventIntegrity" score={row.avgIntegrity} />
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            Contradicted cells:{" "}
+                            {`${t("contradictedCells")}: `}
                             {row.contradictionRate !== null
                               ? `${Math.round(row.contradictionRate * 100)}%`
                               : "—"}
@@ -338,7 +341,7 @@ export default function StoryDetail() {
             )}
           </>
         ) : (
-          <p className="text-center text-muted-foreground py-16">Event not found.</p>
+          <p className="text-center text-muted-foreground py-16">{t("eventNotFound")}</p>
         )}
       </div>
     </AppLayout>
