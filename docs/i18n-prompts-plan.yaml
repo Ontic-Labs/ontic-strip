@@ -1,0 +1,599 @@
+# ============================================================================
+# Ontic Strip — AI Prompt Internationalisation Plan
+# ============================================================================
+# Scope: Make all 12 CFPO v2 prompts locale-aware so the pipeline processes
+#         pt-BR (and future locale) content correctly.
+# Constraint: Internal enum labels (FACTUAL_CLAIM, ENTAILMENT, PRO, etc.)
+#             stay English — they are DB column values and code constants.
+# ============================================================================
+
+meta:
+  created: 2025-07-16
+  authors: [copilot, shf]
+  status: plan          # plan → in-progress → done
+  branch: i18n-prompts  # suggested feature branch
+
+# ============================
+# Phase 0 — Data layer
+# ============================
+phase_0_data:
+  title: "Propagate locale through the pipeline"
+  rationale: >
+    feeds.locale exists but never reaches documents or any oracle function.
+    Every downstream function needs to know the article language so it can
+    select the right prompt variant and produce output in the right language.
+
+  tasks:
+    - id: p0-1
+      title: "Add locale column to documents"
+      detail: >
+        Migration: ALTER TABLE documents ADD COLUMN locale TEXT NOT NULL DEFAULT 'en';
+        Backfill: UPDATE documents d SET locale = f.locale FROM feeds f WHERE d.feed_id = f.id;
+      files:
+        - supabase/migrations/YYYYMMDD_add_documents_locale.sql
+        - src/integrations/supabase/types.ts  # regenerate
+
+    - id: p0-2
+      title: "Set locale at ingestion time"
+      detail: >
+        In the collector / rss-collector functions, when INSERT-ing a new
+        documents row, JOIN feeds to copy feeds.locale into documents.locale.
+      files:
+        - supabase/functions/collector/index.ts
+        - supabase/functions/rss-collector/index.ts
+
+    - id: p0-3
+      title: "Surface locale in every oracle function's DB query"
+      detail: >
+        Each function that fetches documents (normalizer, oracle-classifier,
+        oracle-sentiment, oracle-extractor, oracle-veracity, oracle-ideology,
+        oracle-synthesis, story-clusterer, event-enricher) must SELECT locale
+        alongside existing columns so it is available for prompt compilation.
+      affected_functions:
+        - normalizer
+        - oracle-classifier
+        - oracle-sentiment
+        - oracle-extractor
+        - oracle-veracity      # two prompts: nli + web
+        - oracle-ideology      # two prompts: stance + ideology
+        - oracle-synthesis
+        - story-clusterer
+        - event-enricher
+        - generate-feed-description
+
+# ============================
+# Phase 1 — Prompt architecture
+# ============================
+phase_1_architecture:
+  title: "Locale-aware prompt compilation"
+  rationale: >
+    The CFPO compiler and registry need a locale dimension.  Two strategies
+    are possible: (A) separate template files per locale, or (B) a single
+    template with {{LOCALE}}-gated sections.  We recommend a HYBRID:
+    locale-specific OVERRIDES for the sections that change (voice, examples,
+    enforcement pairs) while keeping the structural CFPO scaffold shared.
+
+  tasks:
+    - id: p1-1
+      title: "Extend CfpoTemplate with optional locale overrides"
+      detail: >
+        Add a new optional field to CfpoTemplate:
+
+          localeOverrides?: Record<string, Partial<Pick<CfpoTemplate,
+            'voice' | 'mission' | 'rules' | 'enforcement' | 'output'>>>
+
+        The compiler merges the base template with the matching locale's
+        overrides before assembling sections.  If no override exists for a
+        locale, the base (English) template is used unchanged.
+      files:
+        - supabase/functions/_shared/prompt-types.ts
+
+    - id: p1-2
+      title: "Update compilePrompt to accept locale"
+      detail: >
+        Signature becomes:
+
+          compilePrompt(promptKey, template, variables?, locale?)
+
+        If locale is provided AND template.localeOverrides[locale] exists,
+        spread overrides onto the base sections before assembleSections().
+        Also inject a standard {{LOCALE}} variable automatically so prompts
+        can reference the language in their text.
+      files:
+        - supabase/functions/_shared/prompt-builder.ts
+
+    - id: p1-3
+      title: "Add locale to PROMPT_REGISTRY (optional)"
+      detail: >
+        If pt-BR requires different model selection (e.g., a model with
+        better Portuguese performance), the registry key becomes
+        "classifier" → "classifier:pt-BR".  getPromptConfig falls back
+        to the base key when no locale-specific entry exists.
+        This is OPTIONAL — only needed if model/temperature tuning differs.
+      files:
+        - supabase/functions/_shared/prompt-registry.ts
+
+# ============================
+# Phase 2 — Prompt localisation
+# ============================
+#
+# Each prompt is classified into one of three tiers:
+#   tier_1_output_language  — Output MUST be in the article's language.
+#   tier_2_examples_voice   — Examples/enforcement pairs need locale equivalents.
+#   tier_3_locale_agnostic  — Works on any language text with no changes
+#                             (or only needs a {{LOCALE}} injection).
+#
+phase_2_prompts:
+  title: "Create pt-BR prompt overrides"
+
+  # ---------- Tier 1: Output language MUST match article language ----------
+  tier_1_output_language:
+    description: >
+      These prompts produce natural-language prose or headlines that readers
+      see.  The output section and voice must switch to the article's
+      language.  Enforcement examples need pt-BR equivalents.
+    prompts:
+
+      - key: synthesis
+        file: supabase/functions/_shared/prompts/synthesis.ts
+        what_changes:
+          voice: >
+            Rewrite in Portuguese journalistic register.
+            "Você vai notar…" style second-person analytical voice.
+          rules: >
+            "Write in second person" → adapt to Portuguese pronominal style.
+            References to AP/Reuters examples → add Folha/Agência Brasil.
+          enforcement: >
+            All violation/valid example pairs must be rewritten in pt-BR
+            with Brazilian political/media context (e.g., STF rulings,
+            Bolsa Família, IBGE statistics instead of BLS).
+          output: >
+            "Write the synthesis as 3-5 sentences" stays, but add:
+            "Write in the same language as the article being analysed."
+        model_note: Gemini 2.5 Flash handles Portuguese well; no model change needed.
+
+      - key: story-clusterer
+        file: supabase/functions/_shared/prompts/story-clusterer.ts
+        what_changes:
+          voice: minor — "news analyst" is language-neutral
+          rules: >
+            "Titles must be max 10 words" — Portuguese words are longer on
+            average; consider raising to 12 for pt-BR override.
+          enforcement: >
+            Replace English examples:
+              "Ukraine Counteroffensive Gains Ground in East"
+              → "Operação Militar Ucraniana Avança no Leste"
+              "Tech Layoffs Accelerate in Q1 2025"
+              → "Demissões em Massa na Tecnologia Aceleram no 1º Tri"
+          output: >
+            Add: "Generate titles and summaries in the same language as the
+            input articles."
+        model_note: No change.
+
+      - key: feed-description
+        file: supabase/functions/_shared/prompts/feed-description.ts
+        what_changes:
+          rules: >
+            Publisher type vocabulary needs Portuguese equivalents:
+            "wire service" → "agência de notícias", "broadcaster" → "emissora".
+          enforcement: >
+            Replace AP/Reuters examples with Folha/G1/UOL examples.
+            "Unknown publisher" → "Veículo não identificado."
+          output: >
+            "Return a single plain-text sentence" — add locale instruction:
+            "Write the description in the language matching the feed's locale."
+        model_note: No change.
+
+  # ---------- Tier 2: Examples & enforcement need locale variants ----------
+  tier_2_examples_voice:
+    description: >
+      These prompts analyse text and return structured JSON.  The output
+      schema stays identical (enum labels in English), but examples,
+      enforcement pairs, and some rules reference English-specific concepts
+      that need pt-BR equivalents to maintain LLM accuracy on Portuguese
+      text.
+    prompts:
+
+      - key: classifier
+        file: supabase/functions/_shared/prompts/classifier.ts
+        what_changes:
+          rules: >
+            Sarcasm detection in Portuguese uses different markers ("só que
+            não", ironic diminutives).  Add pt-BR sarcasm guidance note.
+          enforcement: >
+            Replace English examples with pt-BR versions:
+              "The unemployment rate fell to 3.4%"
+              → "A taxa de desemprego caiu para 8,1% segundo o IBGE"
+              "According to the senator, 'We have deployed…'"
+              → "Segundo o senador, 'Estamos mobilizando todos os recursos…'"
+          output: unchanged  # JSON schema with English enum labels
+        output_language: English enum labels (FACTUAL_CLAIM, etc.)
+
+      - key: extractor
+        file: supabase/functions/_shared/prompts/extractor.ts
+        what_changes:
+          rules: >
+            Attribution splitting examples need Brazilian political figures:
+            "Senator Smith" → "Senador Pacheco", BLS → IBGE, etc.
+          enforcement: >
+            Full rewrite of violation/valid pairs with Brazilian context:
+            "Trump said the deficit was eliminated"
+            → "Lula afirmou que o déficit foi eliminado" (ATTRIBUTION + CONTENT split)
+            Bureau of Labor Statistics → IBGE PNAD Contínua.
+          output: unchanged  # JSON with SIRE metadata
+        output_language: JSON — claim_text in article language, labels English.
+
+      - key: sentiment
+        file: supabase/functions/_shared/prompts/sentiment.ts
+        what_changes:
+          rules: >
+            Portuguese linguistic modifiers differ:
+            - Intensifiers: "muito", "extremamente", "incrivelmente"
+            - Negation: "não", "nunca", "nenhum"
+            - ALL CAPS and "!!!" rules transfer directly.
+            - Diminutives (-inho/-inha) can carry ironic sentiment.
+            Add a pt-BR note on diminutive sentiment.
+          enforcement: >
+            Replace:
+              "devastating hurricane" → "furacão devastador"
+              "successful rescue of all 12 miners" → "resgate bem-sucedido
+               dos 33 mineiros" (or local equivalent)
+          output: unchanged  # numeric JSON array
+
+      - key: stance
+        file: supabase/functions/_shared/prompts/stance.ts
+        what_changes:
+          rules: >
+            Framing signal examples are deeply US-centric:
+              "Tax relief vs tax cuts" → "Reforma tributária vs aumento de impostos"
+              "undocumented immigrants vs illegal aliens"
+              → "imigrantes indocumentados vs ilegais"
+              "pro-life vs anti-abortion" → "pró-vida vs abortista"
+            Add Brazilian media framing equivalents.
+          enforcement: >
+            Replace English enforcement examples with Brazilian policy
+            context: immigration reform → reforma agrária, supply-side
+            economists → economistas da escola de Chicago / desenvolvimentistas.
+          output: unchanged  # PRO/ANTI/NEUTRAL/UNCLEAR labels
+
+      - key: ideology
+        file: supabase/functions/_shared/prompts/ideology.ts
+        what_changes:
+          mission: >
+            MBFC methodology is US-centric.  pt-BR override should
+            reference the Brazilian political spectrum:
+            - Economic: estatismo/desenvolvimentismo (-) vs liberalismo econômico (+)
+            - Social: progressismo (-) vs conservadorismo tradicional (+)
+          rules: >
+            Replace US social issues with Brazilian equivalents:
+            "abortion, immigration, LGBTQ+ rights, climate"
+            → "aborto, reforma agrária, direitos LGBTQIA+, Amazônia/clima,
+               segurança pública, política de armas"
+            Replace "regulation, corporate power, taxation" with
+            "regulação estatal, privatizações, carga tributária, Bolsa Família".
+          enforcement: >
+            Replace all examples:
+              "universal healthcare" → "SUS / saúde pública"
+              "AP report on a tax bill" → "matéria da Agência Brasil sobre PL tributário"
+              "editorial arguing for deregulation" → "editorial defendendo privatizações"
+          output: unchanged  # numeric JSON with English field names
+
+      - key: veracity-web
+        file: supabase/functions/_shared/prompts/veracity-web.ts
+        what_changes:
+          rules: >
+            "Search broadly: wire services (AP, Reuters), official sources"
+            → Add Brazilian sources: "Agência Brasil, Folha, Estadão,
+               G1, portais governamentais (.gov.br)"
+          enforcement: >
+            Replace BLS.gov, AP, Reuters references with Brazilian
+            equivalents: IBGE, TSE, STF, Agência Brasil, Folha de S.Paulo.
+          output: unchanged  # JSON with NLI labels
+
+      - key: veracity-nli
+        file: supabase/functions/_shared/prompts/veracity-nli.ts
+        what_changes:
+          enforcement: >
+            Replace examples:
+              "Unemployment was 3.4% in January 2023" / BLS
+              → "Desemprego ficou em 7,9% no trimestre encerrado em março" / IBGE
+              "The bill passed with 60 votes" / Senate 52-48
+              → "O PL foi aprovado com 308 votos" / Câmara 297-120
+            California raw milk example → Brazilian regulatory equivalent.
+          output: unchanged  # ENTAILMENT/CONTRADICTION/NEUTRAL
+
+  # ---------- Tier 3: Locale-agnostic (minimal or no changes) ----------
+  tier_3_locale_agnostic:
+    description: >
+      These prompts operate on raw content (HTML → markdown) or use a fixed
+      taxonomy that is language-independent.  They need at most a small
+      {{LOCALE}} hint injected.
+    prompts:
+
+      - key: normalizer
+        file: supabase/functions/_shared/prompts/normalizer.ts
+        what_changes:
+          rules: >
+            Already language-neutral ("extract article body as clean markdown").
+            Add: "Preserve the original language of the article — do NOT
+            translate." via {{LOCALE}} variable hint if needed.
+            The {{PUBLISHER_EXCLUSIONS}} variable can carry locale-specific
+            boilerplate patterns (e.g., "Leia também", "Assine a Folha").
+          enforcement: >
+            Add one pt-BR valid example:
+              "# Furacão Milton Atinge a Flórida\nPor Maria Silva…"
+        changes_required: minimal  # mostly via existing PUBLISHER_EXCLUSIONS variable
+
+      - key: event-classifier
+        file: supabase/functions/_shared/prompts/event-classifier.ts
+        what_changes:
+          rules: >
+            The 20-type taxonomy (MILITARY_ACTION, ELECTION, etc.) is
+            language-independent.  No changes needed to the taxonomy enum.
+            Optionally add one pt-BR enforcement example:
+              "Lula assina decreto sobre imigração" → POLICY_CHANGE
+          enforcement: >
+            Add one or two Portuguese examples alongside existing English
+            ones.  Not critical — the model classifies by semantics.
+        changes_required: minimal
+
+# ============================
+# Phase 3 — Pipeline wiring
+# ============================
+phase_3_wiring:
+  title: "Thread locale through every oracle function"
+  rationale: >
+    Each function must read documents.locale from the DB, pass it to
+    compilePrompt as the 4th argument, and — for tier 1 prompts — also
+    inject it into the user prompt builder.
+
+  tasks:
+    - id: p3-1
+      title: "Update every function's DB SELECT to include locale"
+      detail: >
+        Add 'locale' to the .select() columns.  Example:
+          .select("id, url, title, locale")
+      affected_functions:
+        - normalizer
+        - oracle-classifier
+        - oracle-sentiment
+        - oracle-extractor
+        - oracle-veracity
+        - oracle-ideology
+        - oracle-synthesis
+        - story-clusterer
+        - event-enricher
+        - generate-feed-description
+
+    - id: p3-2
+      title: "Pass locale to compilePrompt"
+      detail: >
+        Every compilePrompt call becomes:
+          compilePrompt("classifier", classifierTemplate, {}, doc.locale)
+        The compiler applies locale overrides + injects {{LOCALE}} var.
+      note: >
+        For normalizer, locale also feeds PUBLISHER_EXCLUSIONS:
+          compilePrompt("normalizer", normalizerTemplate,
+            { PUBLISHER_EXCLUSIONS: getExclusionsForLocale(doc.locale) },
+            doc.locale)
+
+    - id: p3-3
+      title: "Update tier 1 user prompt builders to include locale hint"
+      detail: >
+        For synthesis, story-clusterer, and feed-description, prepend
+        a line to the user prompt:  "Language: pt-BR" so the model
+        generates output in the correct language.
+      files:
+        - supabase/functions/_shared/prompts/synthesis.ts      # buildSynthesisUserPrompt
+        - supabase/functions/_shared/prompts/story-clusterer.ts # tool call, add locale
+        - supabase/functions/_shared/prompts/feed-description.ts # buildFeedDescriptionUserPrompt
+
+# ============================
+# Phase 4 — pt-BR override authoring
+# ============================
+phase_4_authoring:
+  title: "Write the actual pt-BR prompt content"
+  rationale: >
+    This is the creative / editorial work.  Each tier 1 and tier 2 prompt
+    needs Brazilian Portuguese enforcement examples, culturally appropriate
+    references, and correct political/media terminology.
+
+  tasks:
+    - id: p4-0
+      title: "Establish EN (US) voice for tier 1 prompts"
+      detail: >
+        Before writing pt-BR overrides, upgrade the base EN voice for all
+        three tier 1 prompts.  The current synthesis voice is vague; the
+        other two have no voice at all.  Apply this approved US voice:
+
+          "You are an authoritative news analyst in the tradition of
+          American public-interest journalism. Your tone is calm, direct,
+          and declarative — you state what the evidence shows without
+          hedging or editorializing. You speak plainly: short sentences,
+          concrete language, no jargon. When something is significant,
+          you say so clearly. When evidence is thin, you say that too.
+          Your reader trusts you because you never overstate."
+
+        Apply to:
+          - synthesis.ts   — replace existing vague voice
+          - story-clusterer.ts — replace generic "news analyst" voice
+          - feed-description.ts — add voice (currently has none)
+        This becomes the base EN voice that pt-BR overrides diverge from.
+
+    - id: p4-1
+      title: "Author tier 1 pt-BR overrides (3 prompts)"
+      prompts: [synthesis, story-clusterer, feed-description]
+      deliverable: >
+        localeOverrides['pt-BR'] objects added directly to each template's
+        export.  Each override contains the rewritten voice, rules,
+        enforcement, and/or output sections in Portuguese.
+        The pt-BR voice should be the Brazilian equivalent — authoritative
+        journalism in the tradition of Caco Barcellos / William Bonner:
+        sóbrio, direto, factual, sem floreios.
+
+    - id: p4-2
+      title: "Author tier 2 pt-BR overrides (7 prompts)"
+      prompts:
+        - classifier
+        - extractor
+        - sentiment
+        - stance
+        - ideology
+        - veracity-web
+        - veracity-nli
+      deliverable: >
+        localeOverrides['pt-BR'] objects for each.  Focus on enforcement
+        examples (violation/valid pairs) with Brazilian political, economic,
+        and media context.
+
+    - id: p4-3
+      title: "Author tier 3 additions (2 prompts)"
+      prompts: [normalizer, event-classifier]
+      deliverable: >
+        Minimal additions: one or two pt-BR enforcement examples and a
+        PUBLISHER_EXCLUSIONS preset for Brazilian news sites.
+
+  editorial_guidelines:
+    voice_philosophy: >
+      Tier 1 prompts get a culturally-grounded voice per locale.
+      EN (US): Cronkite tradition — calm authority, plain language, no overstatement.
+      pt-BR: Bonner/Barcellos tradition — sóbrio, direto, factual, sem floreios.
+      Tier 2 and 3 prompts keep generic role voices (language-neutral).
+    pt_BR_guidelines:
+      - Use formal Brazilian Portuguese (not European Portuguese)
+      - Political examples should be non-partisan and use figures from across
+        the spectrum (Lula, Bolsonaro, Marina Silva, Tarcísio, etc.)
+      - Economic references: IBGE, Banco Central, IPCA, PIB, Selic
+      - Legal references: STF, TSE, Câmara dos Deputados, Senado Federal
+      - Media references: Folha de S.Paulo, O Globo, Estadão, Agência Brasil, G1
+    shared_guidelines:
+      - Keep English enum labels (FACTUAL_CLAIM, ENTAILMENT, etc.) unchanged
+      - Enforcement pair structure must mirror English originals (violation → correction)
+      - Voice tone must match locale but analytical rigor is universal
+
+# ============================
+# Phase 5 — Testing & validation
+# ============================
+phase_5_testing:
+  title: "Validate pt-BR pipeline end-to-end"
+
+  tasks:
+    - id: p5-1
+      title: "Unit tests for locale-aware compilePrompt"
+      detail: >
+        - compilePrompt with locale='pt-BR' uses pt-BR overrides
+        - compilePrompt with locale='en' uses base template unchanged
+        - compilePrompt with unknown locale falls back to base
+        - {{LOCALE}} variable is auto-injected
+
+    - id: p5-2
+      title: "Integration test: run one BR article through full pipeline"
+      detail: >
+        Pick one of the 44 collected pt-BR articles.  Manually trigger
+        each stage and verify:
+        - normalizer preserves Portuguese text without translating
+        - classifier correctly labels Portuguese segments
+        - extractor produces pt-BR claim_text with SIRE metadata
+        - sentiment handles Portuguese intensifiers/negation
+        - veracity-web searches Brazilian sources
+        - synthesis outputs Portuguese prose
+        - story-clusterer generates Portuguese headlines
+
+    - id: p5-3
+      title: "A/B quality check"
+      detail: >
+        Compare LLM output quality for 5 BR articles between:
+        (a) base English prompts processing Portuguese text
+        (b) pt-BR override prompts processing Portuguese text
+        Document accuracy, relevance, and output language correctness.
+
+# ============================
+# Summary: file change inventory
+# ============================
+file_inventory:
+  new_files:
+    - supabase/migrations/YYYYMMDD_add_documents_locale.sql
+
+  modified_files:
+    # Infrastructure
+    - supabase/functions/_shared/prompt-types.ts           # localeOverrides field
+    - supabase/functions/_shared/prompt-builder.ts          # locale param + override merge
+    - supabase/functions/_shared/prompt-registry.ts         # optional locale-keyed entries
+
+    # Prompts (add localeOverrides to each export)
+    - supabase/functions/_shared/prompts/synthesis.ts
+    - supabase/functions/_shared/prompts/story-clusterer.ts
+    - supabase/functions/_shared/prompts/feed-description.ts
+    - supabase/functions/_shared/prompts/classifier.ts
+    - supabase/functions/_shared/prompts/extractor.ts
+    - supabase/functions/_shared/prompts/sentiment.ts
+    - supabase/functions/_shared/prompts/stance.ts
+    - supabase/functions/_shared/prompts/ideology.ts
+    - supabase/functions/_shared/prompts/veracity-web.ts
+    - supabase/functions/_shared/prompts/veracity-nli.ts
+    - supabase/functions/_shared/prompts/normalizer.ts
+    - supabase/functions/_shared/prompts/event-classifier.ts
+
+    # Pipeline functions (add locale to SELECT + compilePrompt args)
+    - supabase/functions/normalizer/index.ts
+    - supabase/functions/oracle-classifier/index.ts
+    - supabase/functions/oracle-sentiment/index.ts
+    - supabase/functions/oracle-extractor/index.ts
+    - supabase/functions/oracle-veracity/index.ts
+    - supabase/functions/oracle-ideology/index.ts
+    - supabase/functions/oracle-synthesis/index.ts
+    - supabase/functions/story-clusterer/index.ts
+    - supabase/functions/event-enricher/index.ts
+    - supabase/functions/generate-feed-description/index.ts
+
+    # Ingestion (set locale on INSERT)
+    - supabase/functions/collector/index.ts
+    - supabase/functions/rss-collector/index.ts
+
+    # Types (regenerate after migration)
+    - src/integrations/supabase/types.ts
+
+# ============================
+# Risks & open questions
+# ============================
+risks:
+  - id: r1
+    risk: "LLM quality on Portuguese text"
+    detail: >
+      Gemini 2.5 Flash and Flash Lite perform well on Portuguese but have
+      not been benchmarked on CFPO-style prompts.  The A/B test in Phase 5
+      will surface any quality gaps.
+    mitigation: >
+      If quality is poor, consider swapping to a model with stronger
+      Portuguese performance for specific prompts (registry locale override).
+
+  - id: r2
+    risk: "Ideology axis calibration for Brazil"
+    detail: >
+      The MBFC-derived economic/social axes map imperfectly to Brazilian
+      politics (e.g., Bolsonarismo blends economic liberalism with social
+      conservatism differently than US equivalents).
+    mitigation: >
+      Consult Brazilian political science framing.  The pt-BR override
+      should recalibrate examples on both axes for local context.
+
+  - id: r3
+    risk: "Veracity web search in Portuguese"
+    detail: >
+      Perplexity / Sonar (used for veracity-web) may have weaker coverage
+      of Brazilian sources compared to English.
+    mitigation: >
+      Test Perplexity's Portuguese source retrieval.  If insufficient,
+      consider adding explicit search URL hints for Brazilian domains
+      (.gov.br, folha.uol.com.br, etc.) in the prompt.
+
+  - id: r4
+    risk: "Story clustering across languages"
+    detail: >
+      If EN and pt-BR articles cover the same event, they may or may not
+      cluster together.  Current embedding model's cross-lingual capability
+      determines this.
+    mitigation: >
+      Out of scope for this plan.  Evaluate cross-lingual clustering
+      separately; may need locale-scoped clustering.
+

@@ -23,6 +23,12 @@ dev-credentials.yaml
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# macOS Finder duplicate artifacts
+*\ 2.*
+*\ 2
+*\ 3.*
+*\ 3
 *.suo
 *.ntvs*
 *.njsproj

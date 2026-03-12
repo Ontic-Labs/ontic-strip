@@ -220,6 +220,19 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
         p_attempt: attempt + 1,
       });
     } else {
+      // Mark document as failed so it doesn't appear stuck
+      await client
+        .from("documents")
+        .update({ pipeline_status: "failed" })
+        .eq("id", documentId);
+
+      // Clear guard row so a manual retry can re-enqueue
+      await client
+        .from("pipeline_enqueue_guard")
+        .delete()
+        .eq("doc_id", documentId)
+        .eq("stage", stage);
+
       await client.from("pipeline_dlq").insert({
         doc_id: documentId,
         stage,

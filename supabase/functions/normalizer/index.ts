@@ -166,7 +166,7 @@ serve(async (req) => {
 
         const wordCount = cleaned.split(/\s+/).filter(Boolean).length;
 
-        await supabase
+        const { error: updateErr } = await supabase
           .from("documents")
           .update({
             normalized_content: cleaned,
@@ -175,6 +175,11 @@ serve(async (req) => {
             pipeline_status: "pending",
           })
           .eq("id", doc.id);
+
+        if (updateErr) {
+          errors.push(`Doc ${doc.id}: status update failed: ${updateErr.message}`);
+          continue;
+        }
 
         totalNormalized++;
         console.log(`Done: ${doc.title} (${wordCount} words)`);
