@@ -14,7 +14,7 @@ AS $$
 BEGIN
   BEGIN
     IF p_run_at IS NOT NULL THEN
-      EXECUTE 'SELECT graphile_worker.add_job($1, $2::jsonb, run_at := $3)'
+      EXECUTE 'SELECT graphile_worker.add_job($1, $2::json, run_at := $3)'
         USING
           'pipeline.run_stage',
           jsonb_build_object(
@@ -26,7 +26,7 @@ BEGIN
           ),
           p_run_at;
     ELSE
-      EXECUTE 'SELECT graphile_worker.add_job($1, $2::jsonb)'
+      EXECUTE 'SELECT graphile_worker.add_job($1, $2::json)'
         USING
           'pipeline.run_stage',
           jsonb_build_object(
