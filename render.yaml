@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: ontic-worker
+    runtime: docker
+    dockerfilePath: worker/Dockerfile
+    dockerContext: worker
+    region: oregon
+    plan: starter
+    envVars:
+      - key: GRAPHILE_DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GRAPHILE_CONCURRENCY
+        value: "5"
