@@ -1,15 +1,17 @@
 import { StripLegend } from "@/components/strip/StripLegend";
 import { cn } from "@/lib/utils";
+
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from '../../i18n';
+import i18n from '../../i18n';
 
 const NAV_ITEMS = [
-  { href: "/stories", label: "Stories", icon: "◫" },
-  { href: "/feed", label: "Feed", icon: "◉" },
-  { href: "/claims", label: "Claims", icon: "◆" },
-  { href: "/leaderboard", label: "Leaderboard", icon: "▲" },
-
-  { href: "/search", label: "Search", icon: "⌕" },
+  { href: "/stories", key: "nav.stories", icon: "◫" },
+  { href: "/feed", key: "nav.feed", icon: "◉" },
+  { href: "/claims", key: "nav.claims", icon: "◆" },
+  { href: "/leaderboard", key: "nav.leaderboard", icon: "▲" },
+  { href: "/search", key: "nav.search", icon: "⌕" },
 ];
 
 interface AppLayoutProps {
@@ -19,16 +21,16 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { t } = useTranslation('layout');
 
   // Close mobile menu on route change
   const { pathname } = location;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional trigger on route change
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" dir={i18n.dir()}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
         <div className="container flex h-14 items-center justify-between px-4 sm:px-6">
@@ -42,9 +44,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className="h-4 w-1 rounded-full bg-strip-unknown" />
               </div>
               <span className="font-mono font-bold text-sm tracking-tight hidden sm:inline">
-                ONTIC STRIP
+                {t('brand')}
               </span>
-              <span className="font-mono font-bold text-sm tracking-tight sm:hidden">KS</span>
+              <span className="font-mono font-bold text-sm tracking-tight sm:hidden">
+                {t('brandShort')}
+              </span>
             </Link>
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
@@ -60,7 +64,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   )}
                 >
                   <span className="mr-1.5">{item.icon}</span>
-                  {item.label}
+                  {t(item.key)}
                 </Link>
               ))}
             </nav>
@@ -72,7 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               type="button"
               className="md:hidden p-2 rounded-md text-muted-foreground hover:bg-accent"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
+              aria-label={t('aria.toggleMenu')}
             >
               {mobileMenuOpen ? "✕" : "☰"}
             </button>
@@ -95,7 +99,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                 )}
               >
                 <span>{item.icon}</span>
-                {item.label}
+                {t(item.key)}
               </Link>
             ))}
           </div>
@@ -113,16 +117,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Footer */}
       <footer className="border-t bg-card/60 py-4 sm:py-6">
         <div className="container px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="font-mono">© {new Date().getFullYear()} Ontic Strip</span>
+          <span className="font-mono">{t('footer.copyright', { year: new Date().getFullYear() })}</span>
           <nav className="flex items-center gap-4 flex-wrap justify-center">
             <Link to="/publishers" className="hover:text-foreground transition-colors">
-              Publishers
+              {t('nav.publishers')}
             </Link>
             <Link to="/docs" className="hover:text-foreground transition-colors">
-              Docs
+              {t('nav.docs')}
             </Link>
             <Link to="/admin/feeds" className="hover:text-foreground transition-colors">
-              Feed Management
+              {t('nav.feedManagement')}
             </Link>
             <a
               href="https://github.com/Ontic-Labs/ontic-strip/blob/main/CONTRIBUTING.md"
@@ -130,13 +134,13 @@ export function AppLayout({ children }: AppLayoutProps) {
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"
             >
-              Contributing
+              {t('nav.contributing')}
             </a>
             <Link to="/privacy" className="hover:text-foreground transition-colors">
-              Privacy
+              {t('nav.privacy')}
             </Link>
             <Link to="/terms" className="hover:text-foreground transition-colors">
-              Terms
+              {t('nav.terms')}
             </Link>
           </nav>
         </div>

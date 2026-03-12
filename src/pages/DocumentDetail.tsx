@@ -566,14 +566,16 @@ export default function DocumentDetail() {
             Click any strip cell to jump directly to its claims and evidence.
           </p>
           <div className="flex items-center gap-4 sm:gap-5 flex-wrap">
-            <ScoreBadge label="Grounding" score={doc.grounding_score} />
+            <ScoreBadge label="Grounding" labelKey="grounding" score={doc.grounding_score} />
             <ScoreBadge
               label="Integrity"
+              labelKey="integrity"
               score={doc.integrity_score}
               status={articleInsights.integrityLowSample ? "low_sample" : "ok"}
             />
             <ScoreBadge
               label="Factuality"
+              labelKey="factuality"
               score={doc.factuality_score}
               status={articleInsights.factualityLowSample ? "low_sample" : "ok"}
             />
@@ -587,11 +589,12 @@ export default function DocumentDetail() {
           <div className="flex items-center gap-4 sm:gap-5 flex-wrap">
             <ScoreBadge
               label="Claim Grounding"
+              labelKey="claimGrounding"
               score={articleInsights.claimGrounding}
               description={`${articleInsights.resolvedClaims}/${articleInsights.totalClaims} claims resolved to supported, disputed, or mixed verdicts.`}
             />
-            <ScoreBadge label="Sourcing Quality" score={doc.sourcing_quality} />
-            <ScoreBadge label="Editorialization" score={doc.one_sidedness} />
+            <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={doc.sourcing_quality} />
+            <ScoreBadge label="Editorialization" labelKey="editorialization" score={doc.one_sidedness} />
             <IdeologyBadge scores={doc.ideology_scores} />
           </div>
 

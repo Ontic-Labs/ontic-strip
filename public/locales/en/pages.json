@@ -1,0 +1,48 @@
+{
+  "landing": {
+    "title": "Welcome to Ontic Strip",
+    "description": "A modern news aggregation platform.",
+    "heroTitle": "Spot how sources cover the same stories",
+    "heroDescription": "We surface signals from across the web so you can spot coverage gaps and compare publisher integrity.",
+    "errorBanner": "Live statistics are temporarily unavailable. Refresh the page to try again.",
+    "articlesAnalyzed": "Articles analyzed",
+    "storiesTracked": "Stories tracked",
+    "activeSources": "Active sources",
+    "topStories": "Top stories this week",
+    "viewAllStories": "View all stories",
+    "coverageBlindspots": "Coverage blind spots",
+    "blindspotDescription": "Stories with concentrated coverage expose gaps in how the rest of the media covers the same topic.",
+    "publisherRankings": "Publisher rankings (7-day)",
+    "viewFullLeaderboard": "View full leaderboard →",
+    "mostGroundedArticles": "Most grounded articles",
+    "leastGroundedArticles": "Least grounded articles",
+    "untitled": "Untitled",
+    "howItWorks": "How it works",
+    "quickLinks": {
+      "leaderboard": "Leaderboard",
+      "publishers": "Publishers",
+      "trendingClaims": "Trending claims"
+    },
+    "steps": {
+      "collect": {
+        "title": "Collect",
+        "description": "Ingest feeds, documents, and publisher metadata in real time."
+      },
+      "analyze": {
+        "title": "Analyze",
+        "description": "Score documents for grounding and integrity with a consistent strip model."
+      },
+      "compare": {
+        "title": "Compare",
+        "description": "Surface publisher contrasts so you can judge coverage imbalances quickly."
+      }
+    },
+    "sources": "{{count}} source",
+    "sources_plural": "{{count}} sources"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "message": "Page not found",
+    "returnHome": "← Return to Home"
+  }
+}

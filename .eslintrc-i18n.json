@@ -1,0 +1,7 @@
+{
+  "extends": ["plugin:i18next/recommended"],
+  "plugins": ["i18next"],
+  "rules": {
+    "i18next/no-literal-string": [2, { "markupOnly": true, "ignoreAttribute": ["data-testid"] }]
+  }
+}

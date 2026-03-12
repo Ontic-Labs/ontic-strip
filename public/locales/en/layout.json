@@ -1,0 +1,23 @@
+{
+  "brand": "Ontic Strip",
+  "brandShort": "KS",
+  "aria": {
+    "toggleMenu": "Toggle navigation menu"
+  },
+  "nav": {
+    "stories": "Stories",
+    "feed": "Feed",
+    "claims": "Claims",
+    "leaderboard": "Leaderboard",
+    "search": "Search",
+    "publishers": "Publishers",
+    "docs": "Docs",
+    "feedManagement": "Feed management",
+    "contributing": "Contributing",
+    "privacy": "Privacy",
+    "terms": "Terms"
+  },
+  "footer": {
+    "copyright": "© {{year}} Ontic Labs"
+  }
+}

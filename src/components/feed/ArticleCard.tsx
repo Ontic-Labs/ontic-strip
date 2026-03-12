@@ -4,20 +4,22 @@ import { StripSummaryBar } from "@/components/strip/StripSummaryBar";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Document } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from '../../i18n';
+import { formatDate } from '../../lib/format';
+import { formatDistanceToNow } from 'date-fns';
 import { Link, useNavigate } from "react-router-dom";
 
 interface ArticleCardProps {
   document: Document;
 }
 
-export function ArticleCard({ document: doc }: ArticleCardProps) {
+  const { t } = useTranslation('feed');
   const navigate = useNavigate();
-  const publisherName = doc.feeds?.publisher_name ?? "Unknown";
+  const publisherName = doc.feeds?.publisher_name ?? t('unknownPublisher');
   const sourceCategory = doc.feeds?.source_category ?? "mainstream";
   const feedDescription = doc.feeds?.description;
   const timeAgo = doc.published_at
-    ? formatDistanceToNow(new Date(doc.published_at), { addSuffix: true })
+    ? formatDistanceToNow(new Date(doc.published_at), { addSuffix: true, locale: undefined })
     : null;
 
   const showPipelineBadge = doc.pipeline_status !== "aggregated";
@@ -30,7 +32,7 @@ export function ArticleCard({ document: doc }: ArticleCardProps) {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-sm sm:text-base leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-                {doc.title ?? "Untitled Article"}
+                {doc.title ?? t('untitledArticle')}
               </h3>
               <div className="flex flex-col gap-0.5 mt-1">
                 <button
@@ -87,8 +89,8 @@ export function ArticleCard({ document: doc }: ArticleCardProps) {
 
           {/* Scores */}
           <div className="flex items-center gap-3">
-            <SparkScore label="Grounding" score={doc.grounding_score} />
-            <SparkScore label="Integrity" score={doc.integrity_score} />
+            <SparkScore label={t('grounding')} score={doc.grounding_score} />
+            <SparkScore label={t('integrity')} score={doc.integrity_score} />
           </div>
         </CardContent>
       </Card>

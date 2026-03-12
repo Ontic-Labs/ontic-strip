@@ -1,8 +1,10 @@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useTranslation } from '../../i18n';
 
 interface ScoreBadgeProps {
-  label: string;
+  label?: string;
+  labelKey?: string;
   score: number | null;
   description?: string;
   className?: string;
@@ -17,23 +19,26 @@ function getScoreColor(score: number): string {
   return "text-strip-contradicted";
 }
 
-const SCORE_DESCRIPTIONS: Record<string, string> = {
-  Grounding:
-    "Proportion of segments backed by actual evidence (supported, contradicted, or mixed). Higher = more claims had retrievable evidence.",
-  "Claim Grounding":
-    "Proportion of individual claims with resolved verdicts (supported, contradicted, or mixed) vs total claims extracted.",
-  Integrity:
-    "Weighted evidence alignment: supports add, contradictions penalize at 1.2×, mixed contributes lightly. Deliberately conservative.",
-  "Sourcing Quality":
-    "Weighted average of evidence tier quality (T1=1.0 … T5=0.2) with a penalty when fewer than 3 evidence pieces are found.",
-  Editorialization:
-    "Measures rhetorical intensity via opinion density (40%), sentiment extremity (35%), and classification imbalance (25%). Lower = more balanced.",
-  Factuality:
-    "Composite score: contradiction rate (40%), sourcing quality (25%), grounding (25%), and editorialization (10%). Higher = more factual.",
-};
-
-export function ScoreBadge({ label, score, description, className, status }: ScoreBadgeProps) {
-  const tooltipText = description ?? SCORE_DESCRIPTIONS[label];
+export function ScoreBadge({
+  label,
+  labelKey,
+  score,
+  description,
+  className,
+  status,
+}: ScoreBadgeProps) {
+  const { t } = useTranslation('strip');
+  const displayLabel =
+    label ??
+    (labelKey ? t(`scoreLabels.${labelKey}`) : undefined) ??
+    t('scoreLabels.grounding');
+  const tooltipText =
+    description ??
+    (labelKey
+      ? t(`scoreDescriptions.${labelKey}`, {
+          defaultValue: displayLabel,
+        })
+      : undefined);
   const isLowSample = status === "low_sample";
 
   if (score === null || score === undefined) {
@@ -41,7 +46,7 @@ export function ScoreBadge({ label, score, description, className, status }: Sco
       <div
         className={cn("flex items-center gap-1.5 text-xs", tooltipText && "cursor-help", className)}
       >
-        <span className="text-muted-foreground">{label}</span>
+        <span className="text-muted-foreground">{displayLabel}</span>
         <span className="font-mono text-muted-foreground">—</span>
       </div>
     );
@@ -66,14 +71,14 @@ export function ScoreBadge({ label, score, description, className, status }: Sco
     <div
       className={cn("flex items-center gap-1.5 text-xs", tooltipText && "cursor-help", className)}
     >
-      <span className="text-muted-foreground">{label}</span>
+      <span className="text-muted-foreground">{displayLabel}</span>
       <span className={cn("font-mono font-semibold", getScoreColor(score))}>{pct}%</span>
       {isLowSample && (
         <span
           className="text-[10px] font-mono text-strip-mixed"
-          title="Low sample size — score may not be reliable"
+          title={t('lowSampleWarning')}
         >
-          ⚠ low sample
+          ⚠ {t('lowSample')}
         </span>
       )}
     </div>
@@ -82,7 +87,7 @@ export function ScoreBadge({ label, score, description, className, status }: Sco
   if (!tooltipText) return inner;
 
   const fullTooltip = isLowSample
-    ? `${tooltipText}\n\n⚠ Low sample: fewer than 3 checkable segments. This score is a floor artifact and may not reflect true quality.`
+    ? `${tooltipText}\n\n⚠ ${t('lowSampleTooltip')}`
     : tooltipText;
 
   return (

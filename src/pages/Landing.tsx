@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { SEOHead, organizationSchema, websiteSchema } from "@/lib/seo";
 import type { Document, PublisherBaseline } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useTranslation } from '../i18n';
+import { formatNumber } from '../lib/format';
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -19,6 +21,7 @@ function toBias(category: string): "left" | "center" | "right" {
 }
 
 export default function Landing() {
+  const { t } = useTranslation('pages');
   const navigate = useNavigate();
 
   // Live pulse counts
@@ -166,31 +169,28 @@ export default function Landing() {
   const isLoading = storiesLoading || baselinesLoading;
 
   const pulseItems = [
-    { label: "Articles Analyzed", value: articleCount, icon: "◉" },
-    { label: "Stories Tracked", value: storyCount, icon: "◫" },
-    { label: "Active Sources", value: sourceCount, icon: "⚙" },
+    { label: t('landing.articlesAnalyzed'), value: articleCount, icon: "◉" },
+    { label: t('landing.storiesTracked'), value: storyCount, icon: "◫" },
+    { label: t('landing.activeSources'), value: sourceCount, icon: "⚙" },
   ];
 
   const steps = [
     {
       step: "1",
-      title: "Collect",
-      description:
-        "RSS feeds from mainstream, partisan, and independent outlets are continuously ingested.",
+      title: t('landing.steps.collect.title'),
+      description: t('landing.steps.collect.description'),
       color: "bg-strip-supported",
     },
     {
       step: "2",
-      title: "Analyze",
-      description:
-        "AI extracts claims, retrieves evidence, and assigns veracity labels to every segment.",
+      title: t('landing.steps.analyze.title'),
+      description: t('landing.steps.analyze.description'),
       color: "bg-strip-opinion",
     },
     {
       step: "3",
-      title: "Compare",
-      description:
-        "Articles covering the same story are clustered so you can spot bias and coverage gaps.",
+      title: t('landing.steps.compare.title'),
+      description: t('landing.steps.compare.description'),
       color: "bg-strip-mixed",
     },
   ];
@@ -198,8 +198,8 @@ export default function Landing() {
   return (
     <AppLayout>
       <SEOHead
-        title="Ontic Strip"
-        description="Multi-source news integrity analysis. Weekly top stories, publisher rankings, coverage blindspots, and veracity scoring across the political spectrum."
+        title={t('landing.title')}
+        description={t('landing.description')}
         path="/"
         jsonLd={[organizationSchema(), websiteSchema()]}
       />
@@ -220,18 +220,17 @@ export default function Landing() {
             ))}
           </div>
           <h1 className="text-2xl sm:text-4xl font-mono font-bold tracking-tight">
-            Multi-source news integrity analysis
+            {t('landing.heroTitle')}
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
-            See how different outlets cover the same story, with automated claim extraction,
-            evidence retrieval, and veracity scoring.
+            {t('landing.heroDescription')}
           </p>
         </section>
 
         {/* Error banner */}
         {hasError && (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-center text-xs text-destructive">
-            Some data failed to load. Try refreshing the page.
+            {t('landing.errorBanner')}
           </div>
         )}
 
@@ -243,7 +242,7 @@ export default function Landing() {
                 <CardContent className="p-4 sm:p-6 text-center space-y-1">
                   <div className="text-2xl">{item.icon}</div>
                   <div className="text-2xl sm:text-3xl font-mono font-bold">
-                    {item.value?.toLocaleString() ?? "—"}
+                    {item.value != null ? formatNumber(item.value) : "—"}
                   </div>
                   <div className="text-[10px] sm:text-xs text-muted-foreground font-medium uppercase tracking-wider">
                     {item.label}
@@ -260,19 +259,19 @@ export default function Landing() {
             to="/leaderboard"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            ▲ Publisher Rankings
+            {t('landing.quickLinks.leaderboard')}
           </Link>
           <Link
             to="/publishers"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            ◫ All Publishers
+            {t('landing.quickLinks.publishers')}
           </Link>
           <Link
             to="/claims"
             className="text-xs sm:text-sm text-primary hover:underline font-medium font-mono"
           >
-            ◆ Trending Claims
+            {t('landing.quickLinks.trendingClaims')}
           </Link>
         </section>
 
@@ -289,10 +288,10 @@ export default function Landing() {
               <section className="pb-10 sm:pb-14 space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    Top Stories This Week
+                    {t('landing.topStories')}
                   </h2>
                   <Link to="/stories" className="text-xs text-primary hover:underline font-medium">
-                    View all stories →
+                    {t('landing.viewAllStories')}
                   </Link>
                 </div>
                 <div className="space-y-3">
@@ -330,7 +329,7 @@ export default function Landing() {
                             )}
                             <div className="flex items-center gap-3 flex-wrap">
                               <span className="text-[10px] font-mono text-muted-foreground">
-                                {story.documents.length} sources
+                                {t('landing.sources', { count: story.documents.length })}
                               </span>
                               <BiasBar
                                 left={left}
@@ -339,7 +338,7 @@ export default function Landing() {
                                 total={story.documents.length}
                                 className="flex-1 max-w-[200px]"
                               />
-                              <ScoreBadge label="Avg Integrity" score={avg} />
+                              <ScoreBadge labelKey="avgIntegrity" score={avg} />
                             </div>
                           </CardContent>
                         </Card>
@@ -354,10 +353,10 @@ export default function Landing() {
             {blindspotStories.length > 0 && (
               <section className="pb-10 sm:pb-14 space-y-3">
                 <h2 className="text-sm font-mono font-semibold text-strip-contradicted uppercase tracking-wider">
-                  Coverage Blindspots
+                  {t('landing.coverageBlindspots')}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Stories covered by only one side of the political spectrum
+                  {t('landing.blindspotDescription')}
                 </p>
                 <div className="space-y-2">
                   {blindspotStories.map((story) => {
@@ -379,7 +378,7 @@ export default function Landing() {
                                 {story.title}
                               </h3>
                               <span className="text-[10px] text-muted-foreground font-mono">
-                                {story.documents.length} sources
+                                {t('landing.sources', { count: story.documents.length })}
                               </span>
                             </div>
                             <BlindspotBadge left={left} center={center} right={right} />
@@ -397,13 +396,13 @@ export default function Landing() {
               <section className="pb-10 sm:pb-14 space-y-3">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-mono font-semibold text-muted-foreground uppercase tracking-wider">
-                    Publisher Rankings (7-Day)
+                    {t('landing.publisherRankings')}
                   </h2>
                   <Link
                     to="/leaderboard"
                     className="text-xs text-primary hover:underline font-medium"
                   >
-                    View full leaderboard →
+                    {t('landing.viewFullLeaderboard')}
                   </Link>
                 </div>
                 <Card>
@@ -430,8 +429,8 @@ export default function Landing() {
                           <span className="flex-1 text-xs sm:text-sm font-medium truncate">
                             {b.publisher_name}
                           </span>
-                          <ScoreBadge label="G" score={b.avg_grounding_score} />
-                          <ScoreBadge label="I" score={b.avg_integrity_score} />
+                          <ScoreBadge label="G" labelKey="grounding" score={b.avg_grounding_score} />
+                          <ScoreBadge label="I" labelKey="integrity" score={b.avg_integrity_score} />
                           <span className="text-[10px] text-muted-foreground font-mono w-12 text-right">
                             {b.document_count}
                           </span>
@@ -448,7 +447,7 @@ export default function Landing() {
               {topArticles && topArticles.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-mono font-semibold text-strip-supported uppercase tracking-wider">
-                    Most Grounded Articles
+                    {t('landing.mostGroundedArticles')}
                   </h2>
                   <div className="space-y-2">
                     {topArticles.map((a) => (
@@ -456,7 +455,7 @@ export default function Landing() {
                         <Card className="hover:shadow-md transition-all hover:border-primary/20">
                           <CardContent className="p-3 space-y-1.5">
                             <h3 className="text-xs font-semibold line-clamp-2">
-                              {a.title ?? "Untitled"}
+                              {a.title ?? t('landing.untitled')}
                             </h3>
                             <StripSummaryBar cells={a.strip ?? []} />
                             <div className="flex items-center gap-2">
@@ -473,7 +472,7 @@ export default function Landing() {
                               >
                                 {a.feeds?.publisher_name}
                               </button>
-                              <ScoreBadge label="I" score={a.integrity_score} className="ml-auto" />
+                              <ScoreBadge label="I" labelKey="integrity" score={a.integrity_score} className="ml-auto" />
                             </div>
                           </CardContent>
                         </Card>
@@ -486,7 +485,7 @@ export default function Landing() {
               {bottomArticles && bottomArticles.length > 0 && (
                 <section className="space-y-3">
                   <h2 className="text-sm font-mono font-semibold text-strip-contradicted uppercase tracking-wider">
-                    Least Grounded Articles
+                    {t('landing.leastGroundedArticles')}
                   </h2>
                   <div className="space-y-2">
                     {bottomArticles.map((a) => (
@@ -494,7 +493,7 @@ export default function Landing() {
                         <Card className="hover:shadow-md transition-all hover:border-primary/20">
                           <CardContent className="p-3 space-y-1.5">
                             <h3 className="text-xs font-semibold line-clamp-2">
-                              {a.title ?? "Untitled"}
+                              {a.title ?? t('landing.untitled')}
                             </h3>
                             <StripSummaryBar cells={a.strip ?? []} />
                             <div className="flex items-center gap-2">
@@ -511,7 +510,7 @@ export default function Landing() {
                               >
                                 {a.feeds?.publisher_name}
                               </button>
-                              <ScoreBadge label="I" score={a.integrity_score} className="ml-auto" />
+                              <ScoreBadge label="I" labelKey="integrity" score={a.integrity_score} className="ml-auto" />
                             </div>
                           </CardContent>
                         </Card>
@@ -526,7 +525,7 @@ export default function Landing() {
 
         {/* How It Works */}
         <section className="pb-12 sm:pb-20 space-y-4">
-          <h2 className="text-lg sm:text-xl font-mono font-semibold text-center">How It Works</h2>
+          <h2 className="text-lg sm:text-xl font-mono font-semibold text-center">{t('landing.howItWorks')}</h2>
           <div className="grid sm:grid-cols-3 gap-4">
             {steps.map((s) => (
               <Card key={s.step}>

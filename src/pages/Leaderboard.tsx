@@ -241,9 +241,9 @@ export default function Leaderboard() {
                         </div>
 
                         <div className="flex items-center gap-3 sm:gap-4 shrink-0 flex-wrap justify-end">
-                          <ScoreBadge label="G" score={baseline.avg_grounding_score} />
-                          <ScoreBadge label="I" score={baseline.avg_integrity_score} />
-                          <ScoreBadge label="F" score={baseline.avg_factuality_score} />
+                          <ScoreBadge label="G" labelKey="grounding" score={baseline.avg_grounding_score} />
+                          <ScoreBadge label="I" labelKey="integrity" score={baseline.avg_integrity_score} />
+                          <ScoreBadge label="F" labelKey="factuality" score={baseline.avg_factuality_score} />
                           {baseline.avg_ideology_economic != null && (
                             <div className="flex items-center gap-1 text-xs">
                               <span className="text-muted-foreground text-[10px]">Ideo</span>

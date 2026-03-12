@@ -170,8 +170,8 @@ export default function StoryDetail() {
                   {docs.length} source{docs.length !== 1 ? "s" : ""}
                 </span>
                 <BlindspotBadge left={left} center={center} right={right} />
-                <ScoreBadge label="Avg Grounding" score={avgGrounding} />
-                <ScoreBadge label="Avg Integrity" score={avgIntegrity} />
+                <ScoreBadge label="Avg Grounding" labelKey="avgGrounding" score={avgGrounding} />
+                <ScoreBadge label="Avg Integrity" labelKey="avgIntegrity" score={avgIntegrity} />
               </div>
 
               <BiasBar
@@ -284,8 +284,8 @@ export default function StoryDetail() {
                             </h3>
                             <StripSummaryBar cells={doc.strip ?? []} />
                             <div className="flex items-center gap-3">
-                              <ScoreBadge label="Grounding" score={doc.grounding_score} />
-                              <ScoreBadge label="Integrity" score={doc.integrity_score} />
+                              <ScoreBadge labelKey="grounding" score={doc.grounding_score} />
+                              <ScoreBadge labelKey="integrity" score={doc.integrity_score} />
                             </div>
                             {doc.word_count && (
                               <span className="text-[10px] text-muted-foreground font-mono">
@@ -321,8 +321,8 @@ export default function StoryDetail() {
                           </span>
                         </div>
                         <div className="mt-2 flex items-center gap-3 flex-wrap">
-                          <ScoreBadge label="Event Grounding" score={row.avgGrounding} />
-                          <ScoreBadge label="Event Integrity" score={row.avgIntegrity} />
+                          <ScoreBadge labelKey="eventGrounding" score={row.avgGrounding} />
+                          <ScoreBadge labelKey="eventIntegrity" score={row.avgIntegrity} />
                           <span className="text-[10px] font-mono text-muted-foreground">
                             Contradicted cells:{" "}
                             {row.contradictionRate !== null

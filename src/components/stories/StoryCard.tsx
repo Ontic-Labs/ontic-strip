@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { Document } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { useTranslation } from '../../i18n';
+import { formatDistanceToNow } from 'date-fns';
 import { Link } from "react-router-dom";
 import { BiasBar } from "./BiasBar";
 import { BlindspotBadge } from "./BlindspotBadge";
@@ -27,6 +28,7 @@ interface StoryCardProps {
 }
 
 export function StoryCard({ cluster, lowCoverage, eventType, geo }: StoryCardProps) {
+  const { t } = useTranslation('stories');
   const docs = cluster.documents;
   const total = docs.length;
 
@@ -100,11 +102,11 @@ export function StoryCard({ cluster, lowCoverage, eventType, geo }: StoryCardPro
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <Badge variant="secondary" className="text-[10px] font-mono">
-              {total} source{total !== 1 ? "s" : ""}
+              {t('sources', { count: total })}
             </Badge>
             {claimCount > 0 && (
               <Badge variant="outline" className="text-[10px] font-mono">
-                {claimCount} claim{claimCount !== 1 ? "s" : ""}
+                {t('claims', { count: claimCount })}
               </Badge>
             )}
             {lowCoverage && (
@@ -112,7 +114,7 @@ export function StoryCard({ cluster, lowCoverage, eventType, geo }: StoryCardPro
                 variant="outline"
                 className={cn("text-[10px] font-mono border-strip-unknown/50 text-strip-unknown")}
               >
-                Low Coverage
+                {t('lowCoverage')}
               </Badge>
             )}
             <BlindspotBadge left={left} center={center} right={right} />
@@ -135,8 +137,8 @@ export function StoryCard({ cluster, lowCoverage, eventType, geo }: StoryCardPro
         </div>
 
         <div className="flex items-center gap-3">
-          <ScoreBadge label="Avg Grounding" score={avgGrounding} />
-          <ScoreBadge label="Avg Integrity" score={avgIntegrity} />
+          <ScoreBadge label="Avg Grounding" labelKey="avgGrounding" score={avgGrounding} />
+          <ScoreBadge label="Avg Integrity" labelKey="avgIntegrity" score={avgIntegrity} />
           {timeAgo && (
             <span className="text-[10px] text-muted-foreground ml-auto font-mono">{timeAgo}</span>
           )}

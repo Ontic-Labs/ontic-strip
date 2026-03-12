@@ -175,16 +175,16 @@ export default function PublisherDetail() {
                   <CardTitle className="text-xs sm:text-sm font-mono">7-Day Baseline</CardTitle>
                 </CardHeader>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center">
-                  <ScoreBadge label="Grounding" score={b7?.avg_grounding_score ?? null} />
-                  <ScoreBadge label="Integrity" score={b7?.avg_integrity_score ?? null} />
-                  <ScoreBadge label="Factuality" score={b7?.avg_factuality_score ?? null} />
+                  <ScoreBadge label="Grounding" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
+                  <ScoreBadge label="Integrity" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
+                  <ScoreBadge label="Factuality" labelKey="factuality" score={b7?.avg_factuality_score ?? null} />
                   <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
                     {b7?.document_count ?? 0} articles
                   </span>
                 </CardContent>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center pt-0">
-                  <ScoreBadge label="Sourcing Quality" score={b7?.avg_sourcing_quality ?? null} />
-                  <ScoreBadge label="Editorialization" score={b7?.avg_one_sidedness ?? null} />
+                  <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={b7?.avg_sourcing_quality ?? null} />
+                  <ScoreBadge label="Editorialization" labelKey="editorialization" score={b7?.avg_one_sidedness ?? null} />
                   {b7?.avg_ideology_economic != null && (
                     <div className="flex items-center gap-1.5 text-xs">
                       <span className="text-muted-foreground">Ideology</span>
@@ -205,16 +205,16 @@ export default function PublisherDetail() {
                   <CardTitle className="text-xs sm:text-sm font-mono">30-Day Baseline</CardTitle>
                 </CardHeader>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center">
-                  <ScoreBadge label="Grounding" score={b30?.avg_grounding_score ?? null} />
-                  <ScoreBadge label="Integrity" score={b30?.avg_integrity_score ?? null} />
-                  <ScoreBadge label="Factuality" score={b30?.avg_factuality_score ?? null} />
+                  <ScoreBadge label="Grounding" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
+                  <ScoreBadge label="Integrity" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
+                  <ScoreBadge label="Factuality" labelKey="factuality" score={b30?.avg_factuality_score ?? null} />
                   <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
                     {b30?.document_count ?? 0} articles
                   </span>
                 </CardContent>
                 <CardContent className="flex gap-4 sm:gap-6 px-3 sm:px-6 pb-3 sm:pb-6 flex-wrap items-center pt-0">
-                  <ScoreBadge label="Sourcing Quality" score={b30?.avg_sourcing_quality ?? null} />
-                  <ScoreBadge label="Editorialization" score={b30?.avg_one_sidedness ?? null} />
+                  <ScoreBadge label="Sourcing Quality" labelKey="sourcingQuality" score={b30?.avg_sourcing_quality ?? null} />
+                  <ScoreBadge label="Editorialization" labelKey="editorialization" score={b30?.avg_one_sidedness ?? null} />
                   {b30?.avg_ideology_economic != null && (
                     <div className="flex items-center gap-1.5 text-xs">
                       <span className="text-muted-foreground">Ideology</span>

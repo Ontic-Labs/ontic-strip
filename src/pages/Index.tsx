@@ -318,7 +318,7 @@ export default function FeedView() {
                         <div className="ml-auto flex items-center gap-1.5 shrink-0">
                           <IntegritySparkline points={getSparklinePoints(publisher)} />
                           {integrityScore !== null && (
-                            <ScoreBadge label="I" score={integrityScore} />
+                            <ScoreBadge label="I" labelKey="integrity" score={integrityScore} />
                           )}
                         </div>
                       </div>

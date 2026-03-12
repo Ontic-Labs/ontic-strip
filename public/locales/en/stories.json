@@ -1,0 +1,9 @@
+{
+  "sources": "{{count}} source",
+  "sources_plural": "{{count}} sources",
+  "claims": "{{count}} claim",
+  "claims_plural": "{{count}} claims",
+  "lowCoverage": "Limited coverage",
+  "avgGrounding": "Avg Grounding",
+  "avgIntegrity": "Avg Integrity"
+}

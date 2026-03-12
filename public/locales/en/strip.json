@@ -1,0 +1,29 @@
+{
+  "scoreLabels": {
+    "grounding": "Grounding",
+    "integrity": "Integrity",
+    "avgGrounding": "Avg Grounding",
+    "avgIntegrity": "Avg Integrity",
+    "eventGrounding": "Event Grounding",
+    "eventIntegrity": "Event Integrity",
+    "claimGrounding": "Claim grounding",
+    "factuality": "Factuality",
+    "sourcingQuality": "Sourcing quality",
+    "editorialization": "Editorialization"
+  },
+  "scoreDescriptions": {
+    "grounding": "Reflects how well coverage is grounded in verifiable sources and references.",
+    "integrity": "Combines accuracy, sourcing, and bias indicators into a single integrity band.",
+    "avgGrounding": "Average grounding score calculated over the set of documents in focus.",
+    "avgIntegrity": "Average integrity score calculated over the set of documents in focus.",
+    "eventGrounding": "Average grounding score across the event cluster.",
+    "eventIntegrity": "Average integrity score across the event cluster.",
+    "claimGrounding": "Shares how resolved claims within the article cluster align with supported, disputed, or mixed verdicts.",
+    "factuality": "Measures how fact-driven the coverage is relative to available evidence.",
+    "sourcingQuality": "Scores how transparent and reputable the cited sources are.",
+    "editorialization": "Highlights the degree of opinionated framing versus straight reporting."
+  },
+  "lowSample": "Low sample size",
+  "lowSampleWarning": "Low sample size",
+  "lowSampleTooltip": "Fewer than 20 documents were available for this bucket; treat the score as advisory."
+}

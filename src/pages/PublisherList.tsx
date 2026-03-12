@@ -298,8 +298,8 @@ export default function PublisherList() {
                                   7d
                                 </span>
                                 <div className="flex gap-2 sm:gap-3">
-                                  <ScoreBadge label="G" score={b7?.avg_grounding_score ?? null} />
-                                  <ScoreBadge label="I" score={b7?.avg_integrity_score ?? null} />
+                                  <ScoreBadge label="G" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
+                                  <ScoreBadge label="I" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
                                 </div>
                               </div>
                               <div>
@@ -307,8 +307,8 @@ export default function PublisherList() {
                                   30d
                                 </span>
                                 <div className="flex gap-2 sm:gap-3">
-                                  <ScoreBadge label="G" score={b30?.avg_grounding_score ?? null} />
-                                  <ScoreBadge label="I" score={b30?.avg_integrity_score ?? null} />
+                                  <ScoreBadge label="G" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
+                                  <ScoreBadge label="I" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
                                 </div>
                               </div>
                             </div>

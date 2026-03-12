@@ -296,9 +296,9 @@ export default function ComparePublishers() {
                           7-Day
                         </span>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <ScoreBadge label="G" score={b7?.avg_grounding_score ?? null} />
-                          <ScoreBadge label="I" score={b7?.avg_integrity_score ?? null} />
-                          <ScoreBadge label="F" score={b7?.avg_factuality_score ?? null} />
+                          <ScoreBadge label="G" labelKey="grounding" score={b7?.avg_grounding_score ?? null} />
+                          <ScoreBadge label="I" labelKey="integrity" score={b7?.avg_integrity_score ?? null} />
+                          <ScoreBadge label="F" labelKey="factuality" score={b7?.avg_factuality_score ?? null} />
                           <span className="text-[10px] text-muted-foreground ml-auto font-mono">
                             {b7?.document_count ?? 0} articles
                           </span>
@@ -310,9 +310,9 @@ export default function ComparePublishers() {
                           30-Day
                         </span>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <ScoreBadge label="G" score={b30?.avg_grounding_score ?? null} />
-                          <ScoreBadge label="I" score={b30?.avg_integrity_score ?? null} />
-                          <ScoreBadge label="F" score={b30?.avg_factuality_score ?? null} />
+                          <ScoreBadge label="G" labelKey="grounding" score={b30?.avg_grounding_score ?? null} />
+                          <ScoreBadge label="I" labelKey="integrity" score={b30?.avg_integrity_score ?? null} />
+                          <ScoreBadge label="F" labelKey="factuality" score={b30?.avg_factuality_score ?? null} />
                           <span className="text-[10px] text-muted-foreground ml-auto font-mono">
                             {b30?.document_count ?? 0} articles
                           </span>

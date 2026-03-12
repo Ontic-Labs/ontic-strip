@@ -1,0 +1,23 @@
+{
+  "newStories": "{{count}} new story",
+  "newStories_plural": "{{count}} new stories",
+  "noStories": "No stories available",
+  "unknownPublisher": "Unknown publisher",
+  "untitledArticle": "Untitled article",
+  "grounding": "Grounding",
+  "integrity": "Integrity",
+  "articleCount": "{{count}} article",
+  "articleCount_plural": "{{count}} articles",
+  "segmentDistribution7d": "Segment distribution (7-day)",
+  "viewFullProfile": "View full profile",
+  "pipelineStatuses": {
+    "normalizing": "Normalizing",
+    "pending": "Pending",
+    "indexing": "Indexing",
+    "classifying": "Classifying",
+    "extracting": "Extracting",
+    "verifying": "Verifying",
+    "aggregated": "Complete",
+    "failed": "Failed"
+  }
+}
