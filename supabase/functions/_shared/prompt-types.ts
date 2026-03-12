@@ -62,6 +62,8 @@ export interface LlmRequest {
   tools?: unknown[];
   /** OpenAI-compatible tool_choice (e.g. { type: "function", function: { name: "..." } }) */
   toolChoice?: unknown;
+  /** Optional AbortSignal for timeout control */
+  signal?: AbortSignal;
 }
 
 export interface LlmResponse {

@@ -50,6 +50,7 @@ export async function callLlm(request: LlmRequest): Promise<LlmResponse> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: request.signal,
   });
 
   if (!resp.ok) {
