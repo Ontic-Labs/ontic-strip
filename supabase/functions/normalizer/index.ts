@@ -18,20 +18,28 @@ const MIN_SCRAPE_CHARS = 200;
 const MIN_CLEANED_CHARS = 100;
 
 async function scrapeToMarkdown(url: string, firecrawlKey: string): Promise<string> {
-  const resp = await fetch(`${FIRECRAWL_API}/scrape`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${firecrawlKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      url,
-      formats: ["markdown"],
-      onlyMainContent: true,
-      waitFor: 2000,
-    }),
-    signal: AbortSignal.timeout(FIRECRAWL_TIMEOUT_MS),
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(`${FIRECRAWL_API}/scrape`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${firecrawlKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url,
+        formats: ["markdown"],
+        onlyMainContent: true,
+        waitFor: 2000,
+      }),
+      signal: AbortSignal.timeout(FIRECRAWL_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new Error(`Firecrawl timed out after ${FIRECRAWL_TIMEOUT_MS}ms`);
+    }
+    throw e;
+  }
 
   if (!resp.ok) {
     const errText = await resp.text();
@@ -55,16 +63,24 @@ async function cleanMarkdown(rawMarkdown: string, apiKey: string): Promise<strin
     PUBLISHER_EXCLUSIONS: "",
   });
 
-  const { content } = await callLlm({
-    gateway: config.gateway,
-    model: config.model,
-    systemPrompt,
-    userPrompt: truncated,
-    temperature: config.temperature,
-    maxTokens: config.maxTokens,
-    apiKey,
-    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-  });
+  let content: string;
+  try {
+    ({ content } = await callLlm({
+      gateway: config.gateway,
+      model: config.model,
+      systemPrompt,
+      userPrompt: truncated,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      apiKey,
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+    }));
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new Error(`LLM cleaning timed out after ${LLM_TIMEOUT_MS}ms`);
+    }
+    throw e;
+  }
 
   if (!content || content.length < MIN_CLEANED_CHARS) {
     throw new Error(`AI cleaning produced insufficient content (${content?.length ?? 0} chars)`);
@@ -119,6 +135,10 @@ serve(async (req) => {
       return json({ skipped: true, message: "Document not in normalizing state (already processed or missing)" });
     }
 
+    if (!doc.url) {
+      return json({ error: "Document has no URL" }, 422);
+    }
+
     // Step 1: Scrape
     console.log(`Scraping: ${doc.url}`);
     const rawMarkdown = await scrapeToMarkdown(doc.url, firecrawlKey);
@@ -155,6 +175,8 @@ serve(async (req) => {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Normalizer error:", msg);
-    return json({ error: msg }, 500);
+    // Permanent failures (insufficient content) → 422 so worker skips retries
+    const status = msg.includes("insufficient content") ? 422 : 500;
+    return json({ error: msg }, status);
   }
 });

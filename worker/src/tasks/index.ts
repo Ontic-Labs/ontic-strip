@@ -159,7 +159,10 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      throw new Error(`${functionName} returned ${resp.status}: ${errText.slice(0, 200)}`);
+      const err = new Error(`${functionName} returned ${resp.status}: ${errText.slice(0, 200)}`);
+      // 422 = permanent failure (e.g. insufficient content) — skip retries
+      (err as any).permanent = resp.status === 422;
+      throw err;
     }
 
     await resp.text();
@@ -223,7 +226,8 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
         p_reason: errMessage,
       });
 
-      if (attempt < stageMaxAttempts) {
+      const isPermanent = !!(error as any)?.permanent;
+      if (!isPermanent && attempt < stageMaxAttempts) {
         await client.rpc("enqueue_graphile_stage_job", {
           p_doc_id: documentId,
           p_stage: stage,
