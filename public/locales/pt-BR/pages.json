@@ -147,6 +147,26 @@
     "every": "A cada {{minutes}}m",
     "polled": "Coletado"
   },
+  "health": {
+    "title": "Saúde do Pipeline",
+    "description": "Saúde e status de processamento do pipeline em tempo real.",
+    "subtitle": "Visualização em tempo real do pipeline de processamento de documentos. Atualiza automaticamente a cada 15s.",
+    "documentStatus": "Status dos Documentos ({{total}} total)",
+    "pausedStages": "Estágios Pausados",
+    "streak": "sequência: {{count}}",
+    "until": "até {{time}}",
+    "recentThroughput": "Throughput Recente (últimos 100 jobs)",
+    "noRecentMetrics": "Sem métricas recentes",
+    "stage": "Estágio",
+    "ok": "OK",
+    "fail": "Falha",
+    "failPct": "Falha %",
+    "avgMs": "Média ms",
+    "dlq": "Fila de Erros ({{count}} recentes)",
+    "noDlqEntries": "Sem entradas na DLQ",
+    "attempt": "tentativa {{num}}",
+    "noErrorMessage": "Sem mensagem de erro"
+  },
   "documentDetail": {
     "loading": "Carregando...",
     "documentAnalysis": "Análise do Documento",

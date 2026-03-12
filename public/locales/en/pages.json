@@ -147,6 +147,26 @@
     "every": "Every {{minutes}}m",
     "polled": "Polled"
   },
+  "health": {
+    "title": "Pipeline Health",
+    "description": "Real-time pipeline job health and processing status.",
+    "subtitle": "Real-time view of the document processing pipeline. Auto-refreshes every 15s.",
+    "documentStatus": "Document Status ({{total}} total)",
+    "pausedStages": "Paused Stages",
+    "streak": "streak: {{count}}",
+    "until": "until {{time}}",
+    "recentThroughput": "Recent Throughput (last 100 jobs)",
+    "noRecentMetrics": "No recent metrics",
+    "stage": "Stage",
+    "ok": "OK",
+    "fail": "Fail",
+    "failPct": "Fail %",
+    "avgMs": "Avg ms",
+    "dlq": "Dead Letter Queue ({{count}} recent)",
+    "noDlqEntries": "No DLQ entries",
+    "attempt": "attempt {{num}}",
+    "noErrorMessage": "No error message"
+  },
   "documentDetail": {
     "loading": "Loading...",
     "documentAnalysis": "Document Analysis",

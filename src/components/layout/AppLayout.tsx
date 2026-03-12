@@ -159,6 +159,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Link to="/admin/feeds" className="hover:text-foreground transition-colors">
               {t("nav.feedManagement")}
             </Link>
+            <Link to="/health" className="hover:text-foreground transition-colors">
+              {t("nav.health")}
+            </Link>
             <a
               href="https://github.com/Ontic-Labs/ontic-strip/blob/main/CONTRIBUTING.md"
               target="_blank"

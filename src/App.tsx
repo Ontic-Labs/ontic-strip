@@ -20,6 +20,7 @@ import StoryDetail from "./pages/StoryDetail";
 import Terms from "./pages/Terms";
 
 import ComparePublishers from "./pages/ComparePublishers";
+import JobHealth from "./pages/JobHealth";
 import NotFound from "./pages/NotFound";
 import TrendingClaims from "./pages/TrendingClaims";
 
@@ -46,6 +47,7 @@ const App = () => (
 
             <Route path="/claims" element={<TrendingClaims />} />
             <Route path="/admin/feeds" element={<AdminFeeds />} />
+            <Route path="/health" element={<JobHealth />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/docs" element={<Docs />} />

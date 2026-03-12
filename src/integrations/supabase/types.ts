@@ -1030,6 +1030,7 @@ export type Database = {
         Args: { p_stage: string }
         Returns: undefined
       }
+      pipeline_status_counts: { Args: never; Returns: Json }
       pipeline_status_to_stage: { Args: { status: string }; Returns: string }
       preview_rescore_batch: {
         Args: { batch_size?: number }
