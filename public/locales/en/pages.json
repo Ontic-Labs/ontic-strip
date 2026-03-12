@@ -165,7 +165,18 @@
     "dlq": "Dead Letter Queue ({{count}} recent)",
     "noDlqEntries": "No DLQ entries",
     "attempt": "attempt {{num}}",
-    "noErrorMessage": "No error message"
+    "noErrorMessage": "No error message",
+    "lastUpdated": "updated {{time}}",
+    "check": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unhealthy": "Unhealthy",
+      "failedCount": "{{count}} failed",
+      "dlqCount": "{{count}} in DLQ",
+      "pausedCount": "{{count}} paused",
+      "noActivity": "No recent activity",
+      "allClear": "All systems operational"
+    }
   },
   "documentDetail": {
     "loading": "Loading...",

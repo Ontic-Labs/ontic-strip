@@ -286,6 +286,7 @@ serve(async (req) => {
     let totalSegments = 0;
     let totalEmbedded = 0;
     const errors: string[] = [];
+    const isWorkerDispatch = !!documentId && docs.length === 1;
 
     for (const doc of docs) {
       try {
@@ -310,11 +311,19 @@ serve(async (req) => {
         // Chunk with watermarks
         const chunks = chunkDocument(doc.normalized_content, doc.id);
         if (chunks.length === 0) {
-          await supabase
+          const msg = `Doc ${doc.id}: no chunks produced`;
+          if (isWorkerDispatch) {
+            return new Response(
+              JSON.stringify({ error: msg }),
+              { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          const { error: updErr } = await supabase
             .from("documents")
             .update({ pipeline_status: "failed" })
             .eq("id", doc.id);
-          errors.push(`Doc ${doc.id}: no chunks produced`);
+          if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
+          errors.push(msg);
           continue;
         }
 
@@ -354,11 +363,19 @@ serve(async (req) => {
           .update({ pipeline_status: "classifying" })
           .eq("id", doc.id);
       } catch (e) {
-        errors.push(`Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`);
-        await supabase
+        const msg = `Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`;
+        if (isWorkerDispatch) {
+          return new Response(
+            JSON.stringify({ error: msg }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        errors.push(msg);
+        const { error: updErr } = await supabase
           .from("documents")
           .update({ pipeline_status: "failed" })
           .eq("id", doc.id);
+        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
       }
     }
 

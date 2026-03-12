@@ -27,11 +27,22 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-strip-contradicted/20 text-strip-contradicted",
 };
 
+const HEALTH_STYLES = {
+  healthy: "bg-strip-supported/10 border-strip-supported/30 text-strip-supported",
+  degraded: "bg-strip-mixed/10 border-strip-mixed/30 text-strip-mixed",
+  unhealthy: "bg-strip-contradicted/10 border-strip-contradicted/30 text-strip-contradicted",
+};
+const HEALTH_ICON = { healthy: "●", degraded: "◐", unhealthy: "○" };
+
 export default function JobHealth() {
   const { t } = useTranslation("pages");
 
   // Pipeline status distribution (server-side GROUP BY via RPC)
-  const { data: statusCounts, isLoading: loadingStatus } = useQuery({
+  const {
+    data: statusCounts,
+    isLoading: loadingStatus,
+    dataUpdatedAt,
+  } = useQuery({
     queryKey: ["job-health-status"],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("pipeline_status_counts");
@@ -87,6 +98,20 @@ export default function JobHealth() {
 
   const total = statusCounts ? Object.values(statusCounts).reduce((a, b) => a + b, 0) : 0;
 
+  const allLoaded = !loadingStatus && !loadingMetrics && !loadingDlq;
+
+  // Derive overall health (only after all queries resolve)
+  const failedCount = statusCounts?.failed ?? 0;
+  const dlqCount = dlqEntries?.length ?? 0;
+  const pausedCount = pausedStages?.length ?? 0;
+  const hasRecentActivity = (recentMetrics?.length ?? 0) > 0;
+  const healthLevel: "healthy" | "degraded" | "unhealthy" =
+    failedCount > 10 || dlqCount > 10 || pausedCount > 2 || !hasRecentActivity
+      ? "unhealthy"
+      : failedCount > 0 || dlqCount > 0 || pausedCount > 0
+        ? "degraded"
+        : "healthy";
+
   // Aggregate metrics by stage
   const stageSummary = recentMetrics
     ? (() => {
@@ -116,11 +141,47 @@ export default function JobHealth() {
     <AppLayout>
       <SEOHead title={t("health.title")} description={t("health.description")} path="/health" />
       <div className="container py-4 sm:py-6 space-y-6 px-4 sm:px-6 max-w-4xl">
+        {/* Health Check Banner */}
+        {allLoaded && (
+          <div
+            className={cn(
+              "rounded-lg border px-4 py-3 flex items-center gap-3 font-mono text-sm",
+              HEALTH_STYLES[healthLevel],
+            )}
+          >
+            <span className="text-lg">{HEALTH_ICON[healthLevel]}</span>
+            <div className="flex-1">
+              <span className="font-bold">{t(`health.check.${healthLevel}`)}</span>
+              <span className="ml-2 text-xs opacity-80">
+                {failedCount > 0 && t("health.check.failedCount", { count: failedCount })}
+                {dlqCount > 0 &&
+                  (failedCount > 0 ? " · " : "") + t("health.check.dlqCount", { count: dlqCount })}
+                {pausedCount > 0 &&
+                  (failedCount > 0 || dlqCount > 0 ? " · " : "") +
+                    t("health.check.pausedCount", { count: pausedCount })}
+                {!hasRecentActivity && t("health.check.noActivity")}
+                {failedCount === 0 &&
+                  dlqCount === 0 &&
+                  pausedCount === 0 &&
+                  hasRecentActivity &&
+                  t("health.check.allClear")}
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1">
           <h1 className="text-xl sm:text-2xl font-mono font-bold tracking-tight">
             {t("health.title")}
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">{t("health.subtitle")}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {t("health.subtitle")}
+            {dataUpdatedAt > 0 && (
+              <span className="ml-2 text-[10px] text-muted-foreground/60">
+                ({t("health.lastUpdated", { time: new Date(dataUpdatedAt).toLocaleTimeString() })})
+              </span>
+            )}
+          </p>
         </div>
 
         {/* Status Distribution */}

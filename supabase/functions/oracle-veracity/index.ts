@@ -443,6 +443,7 @@ serve(async (req) => {
     let totalScopeDowngraded = 0;
     let totalScopeDowngradedSupport = 0;
     const errors: string[] = [];
+    const isWorkerDispatch = !!documentId && docs.length === 1;
 
     for (const doc of docs) {
       try {
@@ -870,7 +871,14 @@ serve(async (req) => {
         const msg = errMsg(e);
         errors.push(`Doc ${doc.id}: ${msg}`);
         console.error(`Doc ${doc.id} error:`, msg);
-        await supabase.from("documents").update({ pipeline_status: "failed" }).eq("id", doc.id);
+        if (isWorkerDispatch) {
+          return new Response(
+            JSON.stringify({ error: `Doc ${doc.id}: ${msg}` }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { error: updErr } = await supabase.from("documents").update({ pipeline_status: "failed" }).eq("id", doc.id);
+        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
       }
     }
 

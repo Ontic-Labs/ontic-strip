@@ -165,7 +165,18 @@
     "dlq": "Fila de Erros ({{count}} recentes)",
     "noDlqEntries": "Sem entradas na DLQ",
     "attempt": "tentativa {{num}}",
-    "noErrorMessage": "Sem mensagem de erro"
+    "noErrorMessage": "Sem mensagem de erro",
+    "lastUpdated": "atualizado {{time}}",
+    "check": {
+      "healthy": "Saudável",
+      "degraded": "Degradado",
+      "unhealthy": "Crítico",
+      "failedCount": "{{count}} falharam",
+      "dlqCount": "{{count}} na DLQ",
+      "pausedCount": "{{count}} pausados",
+      "noActivity": "Sem atividade recente",
+      "allClear": "Todos os sistemas operacionais"
+    }
   },
   "documentDetail": {
     "loading": "Carregando...",

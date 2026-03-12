@@ -150,6 +150,7 @@ serve(async (req) => {
     let totalProcedural = 0;
     let totalOther = 0;
     const errors: string[] = [];
+    const isWorkerDispatch = !!documentId && docs.length === 1;
 
     for (const doc of docs) {
       try {
@@ -231,11 +232,19 @@ serve(async (req) => {
           .update({ pipeline_status: "extracting" })
           .eq("id", doc.id);
       } catch (e) {
-        errors.push(`Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`);
-        await supabase
+        const msg = `Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`;
+        if (isWorkerDispatch) {
+          return new Response(
+            JSON.stringify({ error: msg }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        errors.push(msg);
+        const { error: updErr } = await supabase
           .from("documents")
           .update({ pipeline_status: "failed" })
           .eq("id", doc.id);
+        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
       }
     }
 

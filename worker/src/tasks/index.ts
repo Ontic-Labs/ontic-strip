@@ -98,15 +98,23 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
   });
 
   if (pausedData === true) {
+    // Re-enqueue with a 60s delay so the job isn't lost while paused
+    await client.rpc("enqueue_graphile_stage_job", {
+      p_doc_id: documentId,
+      p_stage: stage,
+      p_status_token: payload.status_token ?? expectedStatus ?? stage.toLowerCase(),
+      p_attempt: attempt,
+      p_run_at: new Date(Date.now() + 60_000).toISOString(),
+    });
     await client.rpc("pipeline_record_stage_metric", {
       p_document_id: documentId,
       p_stage: stage,
       p_status: "deferred",
       p_attempt: attempt,
       p_duration_ms: Date.now() - startedAt,
-      p_error_message: "stage_paused",
+      p_error_message: "stage_paused_reenqueued",
     });
-    helpers.logger.info("pipeline.run_stage deferred (paused)", { stage, documentId, attempt });
+    helpers.logger.info("pipeline.run_stage deferred (paused, re-enqueued)", { stage, documentId, attempt });
     return;
   }
 

@@ -133,6 +133,10 @@ serve(async (req) => {
       );
     }
 
+    // Single-doc mode (from Graphile worker): return HTTP errors so the
+    // worker retry / DLQ mechanism handles failures instead of us.
+    const isWorkerDispatch = !!documentId && docs.length === 1;
+
     let totalNormalized = 0;
     const errors: string[] = [];
 
@@ -143,11 +147,19 @@ serve(async (req) => {
         const rawMarkdown = await scrapeToMarkdown(doc.url, firecrawlKey);
 
         if (!rawMarkdown || rawMarkdown.length < 200) {
-          errors.push(`Doc ${doc.id}: Firecrawl returned insufficient content (${rawMarkdown?.length || 0} chars)`);
-          await supabase
+          const msg = `Firecrawl returned insufficient content (${rawMarkdown?.length || 0} chars)`;
+          if (isWorkerDispatch) {
+            return new Response(
+              JSON.stringify({ error: msg }),
+              { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          errors.push(`Doc ${doc.id}: ${msg}`);
+          const { error: updErr } = await supabase
             .from("documents")
             .update({ pipeline_status: "failed" })
             .eq("id", doc.id);
+          if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
           continue;
         }
 
@@ -156,11 +168,19 @@ serve(async (req) => {
         const cleaned = await cleanMarkdown(rawMarkdown, openrouterApiKey);
 
         if (!cleaned || cleaned.length < 100) {
-          errors.push(`Doc ${doc.id}: AI cleaning produced insufficient content`);
-          await supabase
+          const msg = "AI cleaning produced insufficient content";
+          if (isWorkerDispatch) {
+            return new Response(
+              JSON.stringify({ error: msg }),
+              { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          errors.push(`Doc ${doc.id}: ${msg}`);
+          const { error: updErr } = await supabase
             .from("documents")
             .update({ pipeline_status: "failed" })
             .eq("id", doc.id);
+          if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
           continue;
         }
 
@@ -177,6 +197,12 @@ serve(async (req) => {
           .eq("id", doc.id);
 
         if (updateErr) {
+          if (isWorkerDispatch) {
+            return new Response(
+              JSON.stringify({ error: `status update failed: ${updateErr.message}` }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
           errors.push(`Doc ${doc.id}: status update failed: ${updateErr.message}`);
           continue;
         }
@@ -184,11 +210,19 @@ serve(async (req) => {
         totalNormalized++;
         console.log(`Done: ${doc.title} (${wordCount} words)`);
       } catch (e) {
-        errors.push(`Doc ${doc.id}: ${e instanceof Error ? e.message : String(e)}`);
-        await supabase
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isWorkerDispatch) {
+          return new Response(
+            JSON.stringify({ error: msg }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        errors.push(`Doc ${doc.id}: ${msg}`);
+        const { error: updErr } = await supabase
           .from("documents")
           .update({ pipeline_status: "failed" })
           .eq("id", doc.id);
+        if (updErr) errors.push(`Doc ${doc.id}: failed-status update error: ${updErr.message}`);
       }
     }
 
