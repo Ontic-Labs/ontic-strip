@@ -10,19 +10,31 @@ function getConnectionString(): string {
   return value;
 }
 
+process.on("unhandledRejection", (err) => {
+  console.error("[graphile-worker] unhandled rejection:", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[graphile-worker] uncaught exception:", err);
+  process.exit(1);
+});
+
 const concurrency = Number(process.env.GRAPHILE_CONCURRENCY || 5);
 const connectionString = getConnectionString();
 
-await runMigrations({
-  connectionString,
-});
+try {
+  await runMigrations({ connectionString });
+} catch (err) {
+  console.error("[graphile-worker] migration failed:", err);
+  process.exit(1);
+}
 
 const runner = await run({
   connectionString,
   concurrency: Number.isFinite(concurrency) && concurrency > 0 ? concurrency : 5,
   pollInterval: 1000,
   taskList,
-  noHandleSignals: false,
+  noHandleSignals: true,
 });
 
 console.log("[graphile-worker] started (pipeline.run_stage enabled)");
@@ -30,7 +42,11 @@ console.log("[graphile-worker] started (pipeline.run_stage enabled)");
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
     console.log(`[graphile-worker] received ${signal}, stopping...`);
-    await runner.stop();
+    try {
+      await runner.stop();
+    } catch (err) {
+      console.error("[graphile-worker] error during shutdown:", err);
+    }
     process.exit(0);
   });
 }

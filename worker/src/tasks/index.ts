@@ -10,6 +10,7 @@ type PipelineStagePayload = {
 };
 
 const MAX_ATTEMPTS = 3;
+const EDGE_FN_TIMEOUT_MS = 120_000;
 
 const STAGE_MAX_ATTEMPTS: Record<string, number> = {
   NORMALIZE: 2,
@@ -153,6 +154,7 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ document_id: documentId }),
+      signal: AbortSignal.timeout(EDGE_FN_TIMEOUT_MS),
     });
 
     if (!resp.ok) {
@@ -160,7 +162,7 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
       throw new Error(`${functionName} returned ${resp.status}: ${errText.slice(0, 200)}`);
     }
 
-    await resp.json();
+    await resp.text();
 
     if (stage === "VERACITY") {
       const { data: remaining } = await client
@@ -206,47 +208,57 @@ async function runPipelineStage(rawPayload: unknown, helpers: any) {
   } catch (error) {
     const errMessage = error instanceof Error ? error.message : String(error);
 
-    await client.rpc("pipeline_record_stage_metric", {
-      p_document_id: documentId,
-      p_stage: stage,
-      p_status: "failed",
-      p_attempt: attempt,
-      p_duration_ms: Date.now() - startedAt,
-      p_error_message: errMessage,
-    });
-
-    await client.rpc("pipeline_stage_mark_failure", {
-      p_stage: stage,
-      p_reason: errMessage,
-    });
-
-    if (attempt < stageMaxAttempts) {
-      await client.rpc("enqueue_graphile_stage_job", {
-        p_doc_id: documentId,
+    try {
+      await client.rpc("pipeline_record_stage_metric", {
+        p_document_id: documentId,
         p_stage: stage,
-        p_status_token: payload.status_token ?? expectedStatus ?? stage.toLowerCase(),
-        p_attempt: attempt + 1,
+        p_status: "failed",
+        p_attempt: attempt,
+        p_duration_ms: Date.now() - startedAt,
+        p_error_message: errMessage,
       });
-    } else {
-      // Mark document as failed so it doesn't appear stuck
-      await client
-        .from("documents")
-        .update({ pipeline_status: "failed" })
-        .eq("id", documentId);
 
-      // Clear guard row so a manual retry can re-enqueue
-      await client
-        .from("pipeline_enqueue_guard")
-        .delete()
-        .eq("doc_id", documentId)
-        .eq("stage", stage);
+      await client.rpc("pipeline_stage_mark_failure", {
+        p_stage: stage,
+        p_reason: errMessage,
+      });
 
-      await client.from("pipeline_dlq").insert({
-        doc_id: documentId,
+      if (attempt < stageMaxAttempts) {
+        await client.rpc("enqueue_graphile_stage_job", {
+          p_doc_id: documentId,
+          p_stage: stage,
+          p_status_token: payload.status_token ?? expectedStatus ?? stage.toLowerCase(),
+          p_attempt: attempt + 1,
+        });
+      } else {
+        // Mark document as failed so it doesn't appear stuck
+        await client
+          .from("documents")
+          .update({ pipeline_status: "failed" })
+          .eq("id", documentId);
+
+        // Clear guard row so a manual retry can re-enqueue
+        await client
+          .from("pipeline_enqueue_guard")
+          .delete()
+          .eq("doc_id", documentId)
+          .eq("stage", stage);
+
+        await client.from("pipeline_dlq").insert({
+          doc_id: documentId,
+          stage,
+          attempt,
+          error_message: errMessage,
+          payload,
+        });
+      }
+    } catch (innerErr) {
+      helpers.logger.error("pipeline.run_stage error handler failed", {
         stage,
+        documentId,
         attempt,
-        error_message: errMessage,
-        payload,
+        originalError: errMessage,
+        innerError: innerErr instanceof Error ? innerErr.message : String(innerErr),
       });
     }
 
