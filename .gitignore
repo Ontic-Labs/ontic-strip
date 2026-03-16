@@ -40,3 +40,9 @@ supabase/.temp/
 .vercel
 .env*.local
 kyokon_dump.sql
+
+# macOS Finder duplicates
+*\ 2
+*\ 2.*
+*\ 3
+*\ 3.*
